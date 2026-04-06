@@ -15,6 +15,7 @@ import {
   tryUpdateHallOfFame,
   recordEligibleLevelClear,
   fetchAdminCapabilities,
+  isUserBanned,
 } from './lib/userProfileService.js';
 
 const GUEST_KEY = 'sisort_guest';
@@ -31,6 +32,8 @@ export default function App() {
   const [phase, setPhase] = useState('lobby');
   const [adminOpen, setAdminOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  /** 차단 계정 로그인 시도 후 로그인 화면에 표시 */
+  const [authNotice, setAuthNotice] = useState('');
   /** 마스터·관리자 권한(기록 조회, 회원별 잠금 해제 등) */
   const [adminCaps, setAdminCaps] = useState(() => ({
     isAdmin: false,
@@ -96,8 +99,22 @@ export default function App() {
       return undefined;
     }
     return subscribeAuth(async (u) => {
+      if (u) {
+        const banned = await isUserBanned(u.uid);
+        if (banned) {
+          setAuthNotice('관리자에 의해 이 계정의 접속이 제한되었습니다.');
+          try {
+            await logoutFirebase();
+          } catch (e) {
+            console.error(e);
+          }
+          setAuthUser(null);
+          return;
+        }
+      }
       setAuthUser(u ?? null);
       if (u) {
+        setAuthNotice('');
         setGuestMode(false);
         safeSetItem(GUEST_KEY, '0');
         setPlayerIdFromAuth(u.uid);
@@ -182,6 +199,8 @@ export default function App() {
   if (!showApp) {
     return (
       <AuthScreen
+        notice={authNotice}
+        onDismissNotice={() => setAuthNotice('')}
         onGuest={(name) => {
           setPlayerName(name);
           setGuestMode(true);
@@ -194,6 +213,8 @@ export default function App() {
   if (!playerName && !firebaseOk) {
     return (
       <AuthScreen
+        notice={authNotice}
+        onDismissNotice={() => setAuthNotice('')}
         onGuest={(name) => {
           setPlayerName(name);
           setGuestMode(true);
@@ -215,6 +236,7 @@ export default function App() {
           setPlayerName={setPlayerName}
           onStartPlay={() => setPhase('play')}
           isGuest={isGuestUi}
+          authUid={authUser?.uid ?? null}
           packProgress={packProgress}
           packUnlockBonus={packUnlockBonus}
           onLogout={

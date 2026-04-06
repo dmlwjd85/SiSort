@@ -2,6 +2,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  deleteDoc,
   collection,
   getDocs,
   serverTimestamp,
@@ -16,23 +17,27 @@ import { isMasterAccountEmail } from './accountIdentity.js';
 const USERS = 'users';
 const ADMINS = 'admins';
 const HALL_OF_FAME = 'hallOfFame';
+/** 마스터가 회원 삭제 시 uid 기록 — 재로그인 시 차단 */
+const BANNED_USERS = 'bannedUsers';
 const ACCESS_LOG_MAX = 30;
 
 /**
  * 회원 문서 최초 생성(회원가입 직후)
  * @param {string} uid
- * @param {{ email: string, birthDate?: string, displayName: string }} p — displayName은 가입 시 이름(실명), birthDate는 선택(구 가입·마스터 식별용)
+ * @param {{ email: string, birthDate?: string, displayName: string }} p — displayName=가입 실명, shownName=로비 표시명(생략 시 실명과 동일)
  */
 export async function createUserProfile(uid, { email, birthDate = '', displayName }) {
   const db = getFirestoreDb();
   if (!db) throw new Error('Firestore 없음');
   const ref = doc(db, USERS, uid);
+  const legal = displayName.trim();
   await setDoc(
     ref,
     {
       email: email.trim(),
       birthDate: String(birthDate ?? '').trim(),
-      displayName: displayName.trim(),
+      displayName: legal,
+      shownName: legal,
       packProgress: {},
       createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
@@ -261,6 +266,34 @@ export async function fetchAllUserProfiles() {
   if (!db) throw new Error('Firestore 없음');
   const snap = await getDocs(collection(db, USERS));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** 로비에서 표시 이름 변경 시 Firestore 동기화(관리자 목록 «표시 이름» 열) */
+export async function updateUserShownName(uid, shownName) {
+  const db = getFirestoreDb();
+  if (!db || !uid) return;
+  const t = String(shownName || '').trim().slice(0, 48);
+  if (t.length < 1) return;
+  await setDoc(doc(db, USERS, uid), { shownName: t }, { merge: true });
+}
+
+/** 접속 차단 여부(회원 삭제 후 재로그인 방지) */
+export async function isUserBanned(uid) {
+  const db = getFirestoreDb();
+  if (!db || !uid) return false;
+  const snap = await getDoc(doc(db, BANNED_USERS, uid));
+  return snap.exists();
+}
+
+/**
+ * 마스터 전용: 회원 users 문서 삭제 + uid 차단(Authentication 계정은 콘솔에서 별도 삭제 가능)
+ */
+export async function banAndRemoveUserData(targetUid) {
+  const db = getFirestoreDb();
+  if (!db) throw new Error('Firestore 없음');
+  if (!targetUid) throw new Error('대상 없음');
+  await setDoc(doc(db, BANNED_USERS, targetUid), { at: serverTimestamp() });
+  await deleteDoc(doc(db, USERS, targetUid));
 }
 
 /**

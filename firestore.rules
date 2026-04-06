@@ -51,6 +51,18 @@ service cloud.firestore {
       return adminHasViewRecords() || adminCanUnlockOthers();
     }
 
+    /** 마스터 이메일(master_6~7자리@sisort.local) — Authentication 토큰으로 식별(admins 문서 없이도 동일) */
+    function isMasterAccountEmailAuth() {
+      return isSignedIn()
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('^master_[0-9]{6,7}@sisort\\.local$');
+    }
+
+    /** 마스터만 타인 users 삭제·차단 문서 쓰기 */
+    function adminCanBanOrDeleteUsers() {
+      return adminMasterOrLegacy() || isMasterAccountEmailAuth();
+    }
+
     function packUnlockBonusUpdateOnly() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['packUnlockBonus'])
         && request.resource.data.packUnlockBonus is list
@@ -100,7 +112,12 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId)
         || (adminCanUnlockOthers() && packUnlockBonusUpdateOnly());
-      allow delete: if false;
+      allow delete: if adminCanBanOrDeleteUsers() && request.auth.uid != userId;
+    }
+
+    match /bannedUsers/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create, update, delete: if adminCanBanOrDeleteUsers();
     }
 
     match /admins/{adminId} {

@@ -3,6 +3,7 @@ import { doc, collection, updateDoc, serverTimestamp, onSnapshot } from 'firebas
 import DraggablePanel from './DraggablePanel.jsx';
 import JokboWordListModal from './JokboWordListModal.jsx';
 import { getFirestoreDb, isFirebaseConfigured, ensureFirebaseAuth } from '../lib/firebase.js';
+import { updateUserShownName } from '../lib/userProfileService.js';
 import {
   createRoomDoc,
   joinRoomDoc,
@@ -71,6 +72,8 @@ export default function LobbyScreen({
   logoutLabel = '로그아웃',
   onOpenAdmin,
   onOpenMyStats,
+  /** 회원일 때 Firestore 표시 이름 동기화용 */
+  authUid = null,
 }) {
   const {
     PACK_DATA,
@@ -421,7 +424,7 @@ export default function LobbyScreen({
       console.error(e);
       if (e.message === 'ROOM_NOT_FOUND') setErr('방을 찾을 수 없습니다.');
       else if (e.message === 'GAME_ALREADY_STARTED') setErr('이미 시작된 방입니다.');
-      else if (e.message === 'ROOM_FULL') setErr('방이 가득 찼습니다. (온라인 최대 4명)');
+      else if (e.message === 'ROOM_FULL') setErr(`방이 가득 찼습니다. (온라인 최대 ${ONLINE_ROOM_MAX}명)`);
       else setErr('참가에 실패했습니다.');
     } finally {
       setBusy(false);
@@ -497,6 +500,13 @@ export default function LobbyScreen({
         setBusy(false);
       }
     }
+    if (!isGuest && authUid) {
+      try {
+        await updateUserShownName(authUid, t);
+      } catch (e) {
+        console.error('[shownName]', e);
+      }
+    }
     setShowNameEdit(false);
   };
 
@@ -545,7 +555,7 @@ export default function LobbyScreen({
       </h1>
       <p className="text-slate-400 text-sm mb-2 text-center break-keep">
         {playerName}님 — 방 {ROOM_MIN}~{roomMax}명
-        {mode === 'online' ? ' (온라인 최대 4명)' : ''}
+        {mode === 'online' ? ` (온라인 최대 ${ONLINE_ROOM_MAX}명)` : ''}
         {isGuest && (
           <span className="block text-amber-300/95 text-xs mt-1">게스트: 유치원·6학년 사회 팩 이용</span>
         )}

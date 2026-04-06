@@ -56,7 +56,7 @@ function AuthHeader({ subtitle }) {
 /**
  * 메인 로그인: 회원가입(이름·비밀번호 4자리) / 동일 조합 로그인 / 게스트
  */
-export default function AuthScreen({ onGuest, onLoggedIn }) {
+export default function AuthScreen({ onGuest, onLoggedIn, notice = '', onDismissNotice }) {
   const [mode, setMode] = useState('login'); // login | register | guest | master
   /** 가입·로그인 식별용 실명 */
   const [legalName, setLegalName] = useState('');
@@ -344,6 +344,18 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
 
   return shell(
     <>
+      {notice ? (
+        <div className="mb-4 rounded-xl border border-rose-500/50 bg-rose-950/45 px-3 py-3 text-center text-sm text-rose-100 break-keep">
+          {notice}
+          <button
+            type="button"
+            onClick={() => onDismissNotice?.()}
+            className="mt-2 block w-full rounded-lg bg-rose-900/80 py-2 text-xs font-bold text-rose-50"
+          >
+            확인
+          </button>
+        </div>
+      ) : null}
       <p className="mb-6 text-center text-sm leading-relaxed text-slate-400 break-keep">
         회원은 <strong className="text-amber-200/95">이름(실명)</strong>과 숫자 비밀번호 4자리만 받습니다(이메일 입력 없음). 같은 이름은 한 계정만 만들 수 있습니다. 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
       </p>

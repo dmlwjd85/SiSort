@@ -14,7 +14,7 @@ export const ROOM_MIN = 2;
 /** 오프라인·로컬 로비에서 허용하는 최대 인원 */
 export const ROOM_MAX = 15;
 /** 온라인(Firestore) 방 최대 인원 — 성능·동기화 부담 완화 */
-export const ONLINE_ROOM_MAX = 4;
+export const ONLINE_ROOM_MAX = 6;
 
 /**
  * 방 생성(로비) — 같은 roomId 문서가 이미 있으면 생성하지 않음(merge로 기존 방 덮어쓰기 방지)

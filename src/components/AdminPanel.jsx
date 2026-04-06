@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
-import { fetchAllUserProfiles, setUserPackUnlockBonus } from '../lib/userProfileService.js';
+import { fetchAllUserProfiles, setUserPackUnlockBonus, banAndRemoveUserData } from '../lib/userProfileService.js';
 
 const defaultCaps = {
   isAdmin: false,
@@ -28,6 +28,7 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
   const [unlockDraft, setUnlockDraft] = useState([]);
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockErr, setUnlockErr] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const loadRows = useCallback(() => {
     setLoading(true);
@@ -63,6 +64,26 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
 
   const toggleUnlockPack = (key) => {
     setUnlockDraft((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
+
+  const handleDeleteMember = async (row) => {
+    if (!row?.id || row.id === currentUid) return;
+    const legal = row.displayName || '회원';
+    const shown = row.shownName || row.displayName || '—';
+    const ok = window.confirm(
+      `다음 회원을 삭제(접속 차단)할까요?\n실명: ${legal}\n표시 이름: ${shown}\n\nFirestore 프로필이 삭제되며 재로그인이 막힙니다. Firebase Authentication 사용자는 콘솔에서 별도 삭제할 수 있습니다.`
+    );
+    if (!ok) return;
+    setDeleteBusy(true);
+    setErr('');
+    try {
+      await banAndRemoveUserData(row.id);
+      await loadRows();
+    } catch (e) {
+      setErr(e?.message || '삭제에 실패했습니다. 마스터 권한·Firestore 규칙을 확인하세요.');
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   const saveUnlock = async () => {
@@ -118,8 +139,8 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
                 <thead>
                   <tr className="border-b border-slate-600 text-slate-400">
                     <th className="py-2 pr-3">실명</th>
+                    <th className="py-2 pr-3">표시 이름</th>
                     <th className="py-2 pr-3">생년월일</th>
-                    {showStats && <th className="py-2 pr-3">이메일</th>}
                     {showStats && (
                       <th className="py-2 pr-3 whitespace-nowrap">인정 클리어</th>
                     )}
@@ -133,6 +154,7 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
                     {showUnlock && (
                       <th className="py-2 pr-3 whitespace-nowrap text-amber-200/90">추가 해제</th>
                     )}
+                    {master && <th className="py-2 pr-3 whitespace-nowrap text-rose-200/90">회원 삭제</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -144,10 +166,8 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
                           <span className="ml-1 text-[10px] text-slate-500">(나)</span>
                         )}
                       </td>
+                      <td className="py-2 pr-3 text-xs">{r.shownName || r.displayName || '—'}</td>
                       <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{r.birthDate || '—'}</td>
-                      {showStats && (
-                        <td className="py-2 pr-3 text-xs break-all">{r.email || '—'}</td>
-                      )}
                       {showStats && (
                         <td className="py-2 pr-3 text-xs tabular-nums text-center">
                           {r.playStats?.eligibleLevelClears != null ? r.playStats.eligibleLevelClears : '—'}
@@ -187,6 +207,22 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
                             <span className="block text-[10px] text-amber-200/80 mt-0.5">
                               +{r.packUnlockBonus.length}팩
                             </span>
+                          )}
+                        </td>
+                      )}
+                      {master && (
+                        <td className="py-2 pr-3">
+                          {r.id === currentUid ? (
+                            <span className="text-[11px] text-slate-500">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={deleteBusy}
+                              onClick={() => void handleDeleteMember(r)}
+                              className="rounded-lg bg-rose-900/80 hover:bg-rose-800 border border-rose-600/50 px-2 py-1 text-[11px] font-bold text-rose-100 disabled:opacity-40"
+                            >
+                              삭제
+                            </button>
                           )}
                         </td>
                       )}
