@@ -150,6 +150,10 @@ export function useSilentDictionaryGame() {
   const allCardsRef = useRef([]);
   /** 실수로 판이 끝난 뒤 같은 레벨 재시작을 이미 걸었는지(중복 방지) */
   const failedRoundRecoveryRef = useRef(false);
+  /** 사람(비 AI)이 카드를 제출한 직후 AI가 최소 2초 대기 (절대 시각 ms) */
+  const aiCooldownAfterHumanUntilRef = useRef(0);
+  /** 손패가 한 장만 남았을 때 AI 제출 시각(targetTime 무시, 남은 시간 내 랜덤) */
+  const aiLastCardPlayAtRef = useRef(0);
   const [playedStack, setPlayedStack] = useState([]);
 
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
@@ -281,6 +285,8 @@ export function useSilentDictionaryGame() {
   const applyLevelBundle = useCallback((bundle) => {
     if (!bundle) return;
     failedRoundRecoveryRef.current = false;
+    aiCooldownAfterHumanUntilRef.current = 0;
+    aiLastCardPlayAtRef.current = 0;
     setAllCards(bundle.allCards);
     setPlayedStack(bundle.playedStack);
     setLevel(bundle.level);
@@ -349,6 +355,8 @@ export function useSilentDictionaryGame() {
   const beginOnlineHostGame = useCallback(
     async ({ db, roomId, members, mySlot, packKey, hostPlayerId, playerId }) => {
       failedRoundRecoveryRef.current = false;
+      aiCooldownAfterHumanUntilRef.current = 0;
+      aiLastCardPlayAtRef.current = 0;
       syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
       setSessionMembers(members);
       setMySlotIndex(mySlot);
@@ -514,6 +522,11 @@ export function useSilentDictionaryGame() {
       const lowestRank = Math.min(...ranks);
 
       if (cardToPlay.rank === lowestRank) {
+        const siPlay = parseSlot(cardToPlay.owner);
+        const mem = sessionMembersRef.current[siPlay];
+        if (mem && !mem.isAI) {
+          aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
+        }
         setAllCards((prev) => prev.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c)));
         setPlayedStack((prev) => [...prev, cardToPlay]);
 
@@ -543,6 +556,10 @@ export function useSilentDictionaryGame() {
         const lowestRank = Math.min(...ranks);
 
         if (cardToPlay.rank === lowestRank) {
+          const m = sessionMembersRef.current[fromSlot];
+          if (m && !m.isAI) {
+            aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
+          }
           const next = prevCards.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c));
           setPlayedStack((prev) => [...prev, cardToPlay]);
           if (unplayedCards.length === 1) {
@@ -602,6 +619,11 @@ export function useSilentDictionaryGame() {
       const unplayedCards = allCards.filter((c) => c.status === 'hand');
       if (unplayedCards.length === 0) return;
 
+      if (unplayedCards.length !== 1) {
+        aiLastCardPlayAtRef.current = 0;
+      }
+      if (Date.now() < aiCooldownAfterHumanUntilRef.current) return;
+
       const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
       if (ranks.length === 0) return;
       const lowestRank = Math.min(...ranks);
@@ -610,6 +632,20 @@ export function useSilentDictionaryGame() {
 
       const si = parseSlot(cardToPlay.owner);
       if (si < 0 || !members[si] || !members[si].isAI) return;
+
+      /* 마지막 한 장: targetTime과 무관하게 남은 시간(초) 안에서 랜덤 시각에 제출 */
+      if (unplayedCards.length === 1) {
+        if (aiLastCardPlayAtRef.current === 0) {
+          const maxWaitMs = Math.max(100, currentTime * 1000);
+          aiLastCardPlayAtRef.current = Date.now() + Math.random() * maxWaitMs;
+        }
+        if (Date.now() >= aiLastCardPlayAtRef.current) {
+          aiLastCardPlayAtRef.current = 0;
+          handlePlayCard(cardToPlay);
+        }
+        return;
+      }
+
       /* 다음으로 낼 카드만 타이밍에 맞춰 제출 (항상 정답 카드만 선택) */
       if (!(cardToPlay.targetTime >= currentTime)) return;
 
