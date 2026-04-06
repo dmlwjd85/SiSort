@@ -1,22 +1,24 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { firebasePublicConfig as pub } from '../config/firebasePublic.js';
 
 /**
- * Vite 환경변수로 Firebase 구성 (미설정 시 멀티플레이 비활성)
+ * 환경변수(VITE_*)가 있으면 우선, 없으면 firebasePublic.js 폴백
  */
 function readConfig() {
   return {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || pub.apiKey,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || pub.authDomain,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || pub.projectId,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || pub.storageBucket,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || pub.messagingSenderId,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || pub.appId,
   };
 }
 
 export function isFirebaseConfigured() {
-  return Boolean(import.meta.env.VITE_FIREBASE_API_KEY);
+  const c = readConfig();
+  return Boolean(c.apiKey && c.projectId);
 }
 
 let _db = null;

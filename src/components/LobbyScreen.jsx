@@ -38,7 +38,7 @@ export default function LobbyScreen({
   const onlineOk = isFirebaseConfigured() && db;
 
   const [roomCode, setRoomCode] = useState(() => randomRoomCode());
-  const [mode, setMode] = useState('offline'); // offline | online
+  const [mode, setMode] = useState('online'); // offline | online — 기본: 온라인 방
   const [roomId, setRoomId] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [hostPlayerId, setHostPlayerId] = useState(null);
@@ -57,11 +57,9 @@ export default function LobbyScreen({
     { playerId: `ai-${Date.now()}`, name: 'AI 1', isAI: true },
   ]);
 
+  /** 온라인: 방 생성 후에는 Firestore 멤버, 그 전에는 로컬에서 인원 구성 */
   const members = useMemo(() => {
-    if (mode === 'online') {
-      if (remoteRoom?.members?.length) return remoteRoom.members;
-      return [];
-    }
+    if (mode === 'online' && remoteRoom?.members?.length) return remoteRoom.members;
     return localMembers;
   }, [mode, remoteRoom, localMembers]);
 
@@ -164,14 +162,10 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
-      const initial = [
-        { playerId, name: playerName, isAI: false },
-        { playerId: `ai-${Date.now()}`, name: 'AI 1', isAI: true },
-      ];
       await createRoomDoc(db, code, {
         hostId: playerId,
         packKey: selectedPackKey,
-        members: initial,
+        members: localMembers,
       });
       setRoomId(code);
       setIsHost(true);
@@ -248,12 +242,6 @@ export default function LobbyScreen({
         {playerName}님 — 방 {ROOM_MIN}~{ROOM_MAX}명
       </p>
 
-      {!onlineOk && (
-        <p className="text-amber-300/90 text-sm mb-4 text-center max-w-lg break-keep bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2">
-          Firebase 미설정: 같은 방 멀티플레이는 비활성입니다. 오프라인·AI만 이용 가능합니다.
-        </p>
-      )}
-
       <div className="flex gap-2 mb-6">
         <button
           type="button"
@@ -266,7 +254,7 @@ export default function LobbyScreen({
           type="button"
           disabled={!onlineOk}
           onClick={() => { setMode('online'); setErr(''); }}
-          className={`rounded-full px-4 py-2 font-bold ${mode === 'online' ? 'bg-emerald-600' : 'bg-slate-700'} disabled:opacity-40`}
+          className={`rounded-full px-4 py-2 font-bold ${mode === 'online' ? 'bg-emerald-600' : 'bg-slate-700'} ${!onlineOk ? 'opacity-40' : ''}`}
         >
           온라인 방
         </button>
@@ -283,7 +271,7 @@ export default function LobbyScreen({
           />
           {mode === 'online' && onlineOk && (
             <>
-              <button type="button" onClick={handleCreateRoom} disabled={busy} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold">
+              <button type="button" onClick={handleCreateRoom} disabled={busy || !canStart} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold disabled:opacity-40">
                 방 만들기
               </button>
               <button type="button" onClick={handleJoinRoom} disabled={busy} className="rounded-lg bg-slate-600 px-3 py-2 text-sm font-bold">
@@ -322,16 +310,30 @@ export default function LobbyScreen({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={mode === 'online' ? addAiOnline : addAiOffline}
-              disabled={(mode === 'online' && (!isHost || !roomId)) || totalCount >= ROOM_MAX || busy}
+              onClick={() => {
+                if (mode === 'online' && roomId && isHost) void addAiOnline();
+                else addAiOffline();
+              }}
+              disabled={
+                busy ||
+                totalCount >= ROOM_MAX ||
+                (mode === 'online' && roomId && !isHost)
+              }
               className="rounded-lg bg-green-800 px-3 py-1 text-xs font-bold"
             >
               + AI
             </button>
             <button
               type="button"
-              onClick={mode === 'online' ? removeAiOnline : removeAiOffline}
-              disabled={(mode === 'online' && (!isHost || !roomId)) || totalCount <= ROOM_MIN || busy}
+              onClick={() => {
+                if (mode === 'online' && roomId && isHost) void removeAiOnline();
+                else removeAiOffline();
+              }}
+              disabled={
+                busy ||
+                totalCount <= ROOM_MIN ||
+                (mode === 'online' && roomId && !isHost)
+              }
               className="rounded-lg bg-slate-600 px-3 py-1 text-xs font-bold"
             >
               − AI

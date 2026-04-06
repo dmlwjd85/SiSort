@@ -25,14 +25,15 @@ export default function JokboWordListModal({
     a.word.localeCompare(b.word, 'ko')
   );
 
+  /* animate-fade-in-up 은 translate(-50%)라 flex 중앙 정렬 레이아웃을 깨뜨림 → fade-in만 사용 */
   const overlay = (
     <div
-      className="fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-slate-900/95 p-4 animate-fade-in-up"
+      className="fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-slate-900/95 p-4 sm:p-6 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="jokbo-wordlist-title"
     >
-      <div className="my-auto flex w-full max-w-2xl flex-col rounded-3xl border-2 border-green-500 bg-slate-800 p-6 shadow-2xl max-h-[min(85dvh,40rem)]">
+      <div className="mx-auto w-full max-w-2xl flex flex-col rounded-3xl border-2 border-green-500 bg-slate-800 p-4 sm:p-6 shadow-2xl max-h-[min(85dvh,40rem)] min-w-0">
         <h2
           id="jokbo-wordlist-title"
           className="mb-2 text-center text-3xl font-bold text-green-400"
