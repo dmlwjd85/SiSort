@@ -62,9 +62,8 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const [legalName, setLegalName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
-  /** 마스터: 첫 로그인 번호 6자리 + 비밀번호 6자리(Firebase에 동일 규칙으로 생성된 계정) */
+  /** 마스터: 첫 로그인 번호 6자리만 입력 — Firebase 비밀번호도 이와 동일한 6자리 */
   const [masterFirstLogin, setMasterFirstLogin] = useState('');
-  const [masterPassword, setMasterPassword] = useState('');
   const [guestName, setGuestName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -173,13 +172,8 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     e.preventDefault();
     setErr('');
     const first = masterFirstLogin.replace(/\D/g, '');
-    const pin6 = masterPassword.replace(/\D/g, '');
     if (first.length !== 6) {
-      setErr('마스터 «첫 로그인 번호»는 숫자 6자리입니다.');
-      return;
-    }
-    if (pin6.length !== 6) {
-      setErr('마스터 비밀번호는 숫자 6자리입니다.');
+      setErr('마스터 «첫 로그인 번호»는 숫자 6자리입니다. (Firebase 비밀번호와 동일하게 설정)');
       return;
     }
     let internalEmail;
@@ -191,7 +185,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     }
     setBusy(true);
     try {
-      const user = await loginWithEmail(internalEmail, masterPinToFirebasePassword(pin6));
+      const user = await loginWithEmail(internalEmail, masterPinToFirebasePassword(first));
       await updateUserDisplayName(user, '마스터');
       const existing = await fetchUserDocument(user.uid);
       if (!existing) {
@@ -210,7 +204,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       const code = er?.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setErr(
-          '마스터 첫 로그인 번호·6자리 비밀번호가 Firebase에 등록된 값과 같은지 확인해 주세요. 기존 관리(admins) 권한과 동일한 마스터 기능이 연결됩니다. / Check master first-login # and 6-digit password match the Firebase account.'
+          'Firebase에 master_6자리@sisort.local 사용자가 있고, 비밀번호가 «첫 로그인 번호»와 같은 6자리인지 확인해 주세요. / Ensure Auth user exists and password equals the same 6-digit first-login number.'
         );
       } else if (code === 'auth/invalid-email') {
         setErr('마스터 로그인 정보 형식을 확인해 주세요.');
@@ -371,48 +365,31 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
         <form onSubmit={handleMasterLogin} className="w-full space-y-3">
           <div className="rounded-xl border border-violet-500/40 bg-violet-950/35 px-3 py-2.5 mb-1">
             <p className="text-[12px] text-violet-100/95 text-center break-keep leading-relaxed">
-              <strong className="text-amber-200">마스터 계정</strong>은 «첫 로그인 번호»(숫자 6자리)로 로그인합니다.{' '}
-              <strong className="text-amber-200">비밀번호도 숫자 6자리</strong>로 설정해 주세요. Firebase에{' '}
-              <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_6자리@sisort.local</code> 형식으로 만든 계정과
-              동일해야 합니다. 이 로그인은 기존 <strong className="text-amber-200">관리자·마스터 권한</strong>(기록 열람·회원 잠금 해제)과
-              동일하게 연결됩니다.
+              <strong className="text-amber-200">마스터</strong>는 숫자 6자리 «첫 로그인 번호»만 입력합니다.{' '}
+              Firebase Authentication 에는 이메일{' '}
+              <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_같은6자리@sisort.local</code> 로 사용자를 만들고,{' '}
+              <strong className="text-amber-200">비밀번호도 그 6자리와 동일</strong>하게 넣어야 합니다(별도 비밀번호 없음). 권한은 기존
+              마스터·관리자와 동일합니다.
             </p>
             <p className="text-[11px] text-slate-500 text-center mt-1.5 break-keep">
-              Master: 6-digit first login # + 6-digit PIN. Must match the Auth user email pattern. Same capabilities as admin master.
+              One 6-digit field. In Firebase: email master_NNNNNN@sisort.local and password = the same NNNNNN.
             </p>
           </div>
           <div>
             <label htmlFor="sisort-master-first" className="block text-xs font-bold text-violet-200/95 mb-1.5">
-              첫 로그인 번호 (숫자 6자리)
+              첫 로그인 번호 (= Firebase 비밀번호, 숫자 6자리)
             </label>
             <input
               id="sisort-master-first"
               inputMode="numeric"
+              type="password"
               name="masterFirstLogin"
               value={masterFirstLogin}
               onChange={(e) => setMasterFirstLogin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="예: 첫 로그인에 쓸 6자리"
-              maxLength={6}
-              autoComplete="username"
-              className={`${inputBase} tracking-widest text-center text-lg`}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="sisort-master-password" className="block text-xs font-bold text-violet-200/95 mb-1.5">
-              비밀번호 (숫자 6자리)
-            </label>
-            <input
-              id="sisort-master-password"
-              inputMode="numeric"
-              type="password"
-              name="masterPassword"
-              autoComplete="current-password"
-              value={masterPassword}
-              onChange={(e) => setMasterPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
               placeholder="000000"
               maxLength={6}
-              className={`${inputBase} tracking-widest`}
+              autoComplete="current-password"
+              className={`${inputBase} tracking-widest text-center text-lg`}
               required
             />
           </div>

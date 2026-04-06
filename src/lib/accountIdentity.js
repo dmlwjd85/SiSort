@@ -77,7 +77,10 @@ export function isMasterAccountEmail(email) {
   return /^master_\d{6}@sisort\.local$/i.test(String(email || '').trim());
 }
 
-/** 마스터 비밀번호는 숫자 6자리( Firebase 최소 길이 충족 ) */
+/**
+ * 마스터: «첫 로그인 번호» 6자리를 그대로 Firebase 비밀번호로 사용(콘솔에도 동일 6자리로 등록)
+ * — Firebase에 다른 비밀번호를 넣으면 로그인되지 않음
+ */
 export function masterPinToFirebasePassword(pin6) {
   const p = String(pin6 || '').replace(/\D/g, '');
   if (p.length !== 6) throw new Error('INVALID_MASTER_PIN');

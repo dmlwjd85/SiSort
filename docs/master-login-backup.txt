@@ -1,0 +1,22 @@
+침묵의 가나다 — 마스터 로그인 백업 메모 (SiSort)
+================================================
+
+[규칙]
+- 앱 «마스터» 탭에는 «첫 로그인 번호» 숫자 6자리만 입력합니다.
+- Firebase Authentication 의 비밀번호는 그 6자리와 반드시 동일하게 설정합니다.
+- 이메일 형식: master_6자리@sisort.local
+  예: 번호가 100001 이면
+      이메일: master_100001@sisort.local
+      비밀번호: 100001
+
+[Firebase 콘솔에서 사용자 만들기 / 수정]
+1. Authentication → Users → Add user
+2. Email: master_NNNNNN@sisort.local (NNNNNN = 사용할 6자리)
+3. Password: NNNNNN 과 동일한 6자리
+
+[권한]
+- master_*@sisort.local 패턴으로 로그인하면 앱이 마스터(기록 열람·회원 잠금 해제) 권한을 부여합니다.
+- 별도 Firestore admins 문서가 없어도 동작합니다.
+
+[이 파일]
+- 저장소에 포함된 절차 백업용입니다. 비밀번호는 코드에 넣지 마세요.
