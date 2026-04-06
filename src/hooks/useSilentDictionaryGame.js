@@ -9,6 +9,8 @@ import {
   subscribeActions,
   deleteActionDoc,
   pushPlayAction,
+  returnRoomToLobby,
+  playerSelfLeaveRoom,
   ROOM_MAX,
 } from '../lib/roomService.js';
 
@@ -158,9 +160,15 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
 }
 
 /**
- * 移⑤У??媛?섎떎 ??2~15紐??щ’, ?⑤씪?????몄뒪?멸? Firestore ?숆린??
+ * 침묵의 사전 게임 훅 (2~15명, 온라인 시 Firestore 동기화)
+ * @param {{ onReturnedToLobby?: () => void }} [options] — 방이 로비로 돌아올 때(호스트 복귀·스냅샷) 상위에서 phase 전환 등
  */
-export function useSilentDictionaryGame() {
+export function useSilentDictionaryGame(options = {}) {
+  const { onReturnedToLobby } = options;
+  const onReturnedToLobbyRef = useRef(onReturnedToLobby);
+  useEffect(() => {
+    onReturnedToLobbyRef.current = onReturnedToLobby;
+  }, [onReturnedToLobby]);
   const [gameState, setGameState] = useState('home');
   const [level, setLevel] = useState(1);
   const [lives, setLives] = useState(3);
@@ -204,10 +212,15 @@ export function useSilentDictionaryGame() {
   /** 온라인 세션 (effect 재실행용) */
   const [netRoom, setNetRoom] = useState(null);
   const sessionMembersRef = useRef(sessionMembers);
+  const livesRef = useRef(lives);
 
   useEffect(() => {
     sessionMembersRef.current = sessionMembers;
   }, [sessionMembers]);
+
+  useEffect(() => {
+    livesRef.current = lives;
+  }, [lives]);
 
   useEffect(() => {
     allCardsRef.current = allCards;
@@ -396,7 +409,7 @@ export function useSilentDictionaryGame() {
     }, 2000);
   }, [level, startLevel]);
 
-  /* 실수로 손패가 비는 즉시 재시작(시간 종료까지 기다리지 않음) */
+  /* 실수로 손패가 비고 폐기만 남음: 생명이 남았으면 레벨 클리어, 없으면 같은 레벨 재시작 */
   useEffect(() => {
     if (gameState !== 'playing' || isPreparing) return;
     const cards = allCards;
@@ -404,6 +417,13 @@ export function useSilentDictionaryGame() {
     const unplayed = cards.filter((c) => c.status === 'hand');
     const hasDiscarded = cards.some((c) => c.status === 'discarded');
     if (unplayed.length !== 0 || !hasDiscarded) return;
+    if (failedRoundRecoveryRef.current) return;
+    if (livesRef.current > 0) {
+      failedRoundRecoveryRef.current = true;
+      setIsPaused(true);
+      setGameState('level_clear');
+      return;
+    }
     restartLevelAfterFailedRound();
   }, [allCards, gameState, isPreparing, restartLevelAfterFailedRound]);
 
@@ -504,11 +524,51 @@ export function useSilentDictionaryGame() {
     startLevel(1, false, undefined, []);
   };
 
+  /** 로비로 나가기·스냅샷 복귀 시 로컬 판 상태 초기화 */
   const resetToLobby = useCallback(() => {
+    lastHydratedGameJsonRef.current = '';
+    lastNetworkWriteJsonRef.current = '';
+    failedRoundRecoveryRef.current = false;
+    aiCooldownAfterHumanUntilRef.current = 0;
+    aiLastCardPlayAtRef.current = 0;
+    aiPlayAtWallRef.current = 0;
+    aiPlayScheduledCardIdRef.current = '';
     syncNetRef(null);
     setGameState('home');
     setSessionMembers([]);
+    setAllCards([]);
+    setPlayedStack([]);
+    setMessage('');
+    setLevel(1);
+    setLives(3);
+    setTimeLeft(20);
+    setIsPaused(false);
+    setUsedWords([]);
+    setHints(2);
+    setIsHintMode(false);
+    setReviewedWords([]);
+    setIsPreparing(false);
+    setPrepTimeLeft(5);
   }, [syncNetRef]);
+
+  /** 온라인: Firestore에 로비 반영 후 로컬 초기화 (로비 버튼·결과 화면) */
+  const performLeaveOnline = useCallback(async () => {
+    const net = networkRef.current;
+    if (!net.db || !net.roomId) {
+      resetToLobby();
+      return;
+    }
+    try {
+      if (net.isHost) {
+        await returnRoomToLobby(net.db, net.roomId, net.hostPlayerId);
+      } else {
+        await playerSelfLeaveRoom(net.db, net.roomId, net.playerId);
+      }
+    } catch (e) {
+      console.error('[performLeaveOnline]', e);
+    }
+    resetToLobby();
+  }, [resetToLobby]);
 
   const toggleHintMode = () => {
     if (hints > 0 && !isHintMode) {
@@ -530,28 +590,31 @@ export function useSilentDictionaryGame() {
 
   const handleMistake = useCallback((wrongCard) => {
     setIsPaused(true);
-    setPlayedStack((prev) => [...prev, wrongCard]);
+    const prev = allCardsRef.current;
+    const toDiscard = prev.filter((c) => c.status === 'hand' && c.rank < wrongCard.rank);
+    /* 앞서 내야 했는데 밀린 카드 장수만큼 생명력 차감(최소 1) */
+    const penalty = Math.max(1, toDiscard.length);
+    const sortedDisc = [...toDiscard].sort((a, b) => a.rank - b.rank);
 
-    setAllCards((prev) =>
-      prev.map((c) => {
+    setPlayedStack((stack) => [...stack, wrongCard, ...sortedDisc]);
+    setAllCards((p) =>
+      p.map((c) => {
         if (c.id === wrongCard.id) return { ...c, status: 'played' };
-        if (c.status === 'hand' && c.rank < wrongCard.rank) {
-          setPlayedStack((stack) => [...stack, c]);
-          return { ...c, status: 'discarded' };
-        }
+        if (c.status === 'hand' && c.rank < wrongCard.rank) return { ...c, status: 'discarded' };
         return c;
       })
     );
 
     setLives((prevLives) => {
-      const newLives = prevLives - 1;
+      const newLives = prevLives - penalty;
       if (newLives <= 0) {
         setGameState('game_over');
       } else {
-        setMessage(`앗! 누군가 더 앞선 단어를 가지고 있습니다.\n(생명력 -1)`);
+        setMessage(
+          `앗! 순서가 맞지 않습니다.\n앞서 내야 할 카드 ${toDiscard.length}장 — 생명력 -${penalty}`
+        );
         setTimeout(() => {
           setMessage('');
-          /* 손패가 이미 없으면(모두 제출·폐기) 타이머를 다시 켜면 시간 초과 이중 패널티가 남 */
           const hands = allCardsRef.current.filter((c) => c.status === 'hand');
           if (hands.length === 0) {
             setIsPaused(true);
@@ -661,15 +724,19 @@ export function useSilentDictionaryGame() {
       }
     }
 
-    /* 실수 후 손패 없음: 생명은 이미 깎였고, 타임아웃으로 또 깎이면 안 됨 → 같은 레벨 재시작 */
+    /* 실수 후 손패 없음: 타임아웃으로 이중 차감 방지 */
     if (unplayed.length === 0 && cards.length > 0) {
       if (hasDiscarded) {
-        if (!failedRoundRecoveryRef.current) {
+        if (failedRoundRecoveryRef.current) return;
+        if (livesRef.current > 0) {
+          failedRoundRecoveryRef.current = true;
+          setIsPaused(true);
+          setGameState('level_clear');
+        } else {
           restartLevelAfterFailedRound();
         }
         return;
       }
-      /* 폐기 없이 손만 비었으면 정상 클리어 직전 레이스 */
       setIsPaused(true);
       setGameState((g) => (g === 'playing' ? 'level_clear' : g));
       return;
@@ -791,19 +858,56 @@ export function useSilentDictionaryGame() {
     return () => clearTimeout(timer);
   }, [timeLeft, gameState, isPaused, isHintMode, isPreparing, runTimer, checkAiPlays, handleTimeout, docHidden, netRoom]);
 
-  /** 鍮꾪샇?ㅽ듃: 諛?寃뚯엫 ?ㅻ깄??*/
+  /** 온라인: 방 문서 구독 — 로비 복귀·멤버(AI 대체)·게스트 게임 동기화 */
   useEffect(() => {
-    if (!netRoom?.db || !netRoom?.roomId || netRoom.isHost) return undefined;
-    return subscribeRoom(netRoom.db, netRoom.roomId, (room) => {
-      if (!room || room.phase !== 'playing' || !room.game) return;
-      try {
+    if (!netRoom?.db || !netRoom?.roomId) return undefined;
+    const db = netRoom.db;
+    const roomId = netRoom.roomId;
+    return subscribeRoom(db, roomId, (room) => {
+      if (!room) return;
+      if (room.phase === 'lobby') {
+        lastHydratedGameJsonRef.current = '';
+        lastNetworkWriteJsonRef.current = '';
+        failedRoundRecoveryRef.current = false;
+        aiCooldownAfterHumanUntilRef.current = 0;
+        aiLastCardPlayAtRef.current = 0;
+        aiPlayAtWallRef.current = 0;
+        aiPlayScheduledCardIdRef.current = '';
+        setAllCards([]);
+        setPlayedStack([]);
+        setMessage('');
+        setLevel(1);
+        setLives(3);
+        setTimeLeft(20);
+        setIsPaused(false);
+        setUsedWords([]);
+        setHints(2);
+        setIsHintMode(false);
+        setReviewedWords([]);
+        setIsPreparing(false);
+        setPrepTimeLeft(5);
+        setGameState('home');
         if (Array.isArray(room.members)) setSessionMembers(room.members);
-        hydrateFromGame(room.game);
-      } catch (e) {
-        console.error('[subscribeRoom]', e);
+        syncNetRef(null);
+        try {
+          onReturnedToLobbyRef.current?.();
+        } catch (e) {
+          console.error('[onReturnedToLobby]', e);
+        }
+        return;
+      }
+      if (room.phase === 'playing' && room.game) {
+        if (Array.isArray(room.members)) setSessionMembers(room.members);
+        if (!networkRef.current.isHost) {
+          try {
+            hydrateFromGame(room.game);
+          } catch (e) {
+            console.error('[subscribeRoom hydrate]', e);
+          }
+        }
       }
     });
-  }, [netRoom, hydrateFromGame]);
+  }, [netRoom, hydrateFromGame, syncNetRef]);
 
   /** ?몄뒪?? ?먭꺽 ?뚮젅???≪뀡 */
   useEffect(() => {
@@ -943,6 +1047,7 @@ export function useSilentDictionaryGame() {
     startOfflineFromLobby,
     setPlayerContext,
     resetToLobby,
+    performLeaveOnline,
     toggleHintMode,
     handleRevealAICard,
     handlePlayCard,

@@ -12,7 +12,9 @@ import { safeGetItem } from './utils/safeStorage.js';
 export default function App() {
   const [playerName, setPlayerName] = useState(() => safeGetItem('sisort_name', ''));
   const [phase, setPhase] = useState('lobby');
-  const game = useSilentDictionaryGame();
+  const game = useSilentDictionaryGame({
+    onReturnedToLobby: () => setPhase('lobby'),
+  });
   const playerId = getOrCreatePlayerId();
 
   // setPlayerContext는 ref만 갱신 — game 객체를 의존에 넣으면 매 렌더마다 실행됨
@@ -21,8 +23,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- playerId만 필요
   }, [playerId]);
 
-  const onLeaveLobby = () => {
-    game.resetToLobby();
+  const onLeaveLobby = async () => {
+    if (game.netRoom?.db && game.netRoom?.roomId) {
+      await game.performLeaveOnline();
+    } else {
+      game.resetToLobby();
+    }
     setPhase('lobby');
   };
 

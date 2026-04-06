@@ -40,6 +40,7 @@ export async function createRoomDoc(db, roomId, { hostId, packKey, members }) {
 
 /**
  * 방 참가: 멤버에 본인이 없으면 추가 (온라인은 ONLINE_ROOM_MAX 이하)
+ * 꽉 찼을 때 가상 플레이어(AI) 슬롯이 있으면 그 자리를 참가자로 교체
  */
 export async function joinRoomDoc(db, roomId, member) {
   const ref = doc(db, 'rooms', roomId);
@@ -53,14 +54,76 @@ export async function joinRoomDoc(db, roomId, member) {
       throw new Error('GAME_ALREADY_STARTED');
     }
     let members = Array.isArray(data.members) ? [...data.members] : [];
-    if (members.some((m) => m.playerId === member.playerId)) {
+    if (members.some((m) => m && m.playerId === member.playerId)) {
       return;
     }
     if (members.length >= ONLINE_ROOM_MAX) {
+      const aiIdx = members.findIndex((m) => m && m.isAI === true);
+      if (aiIdx >= 0) {
+        members[aiIdx] = { ...member, isAI: false };
+        transaction.update(ref, { members, updatedAt: serverTimestamp() });
+        return;
+      }
       throw new Error('ROOM_FULL');
     }
     members.push(member);
     transaction.update(ref, { members, updatedAt: serverTimestamp() });
+  });
+}
+
+/**
+ * 본인 퇴장: 슬롯 인덱스를 유지하기 위해 같은 위치를 AI로 교체 (로비·플레이 중 공통)
+ * 마지막 실제 플레이어 1명이 나가면 방을 로비로 비우지 않고 phase만 로비·game 제거(재시작 대기)
+ */
+export async function playerSelfLeaveRoom(db, roomId, leavingPlayerId) {
+  const ref = doc(db, 'rooms', roomId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists()) throw new Error('ROOM_NOT_FOUND');
+    const data = snap.data();
+    const members = Array.isArray(data.members) ? [...data.members] : [];
+    const idx = members.findIndex((m) => m && String(m.playerId) === String(leavingPlayerId));
+    if (idx < 0) return;
+
+    if (String(data.hostId) === String(leavingPlayerId)) {
+      throw new Error('HOST_USE_RETURN_LOBBY');
+    }
+
+    const humans = members.filter((m) => m && !m.isAI);
+    if (humans.length <= 1 && !members[idx].isAI) {
+      transaction.update(ref, {
+        phase: 'lobby',
+        game: null,
+        members: [],
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
+
+    members[idx] = {
+      playerId: `ai-replace-${Date.now()}`,
+      name: 'AI (대체)',
+      isAI: true,
+    };
+    transaction.update(ref, { members, updatedAt: serverTimestamp() });
+  });
+}
+
+/**
+ * 호스트: 플레이 종료 후 방을 다시 로비로 (같은 멤버로 재시작 가능)
+ */
+export async function returnRoomToLobby(db, roomId, hostId) {
+  const ref = doc(db, 'rooms', roomId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists()) throw new Error('ROOM_NOT_FOUND');
+    const data = snap.data();
+    if (String(data.hostId) !== String(hostId)) throw new Error('NOT_HOST');
+    transaction.update(ref, {
+      phase: 'lobby',
+      game: null,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 

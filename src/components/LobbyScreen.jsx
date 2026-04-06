@@ -44,7 +44,22 @@ export default function LobbyScreen({
 
   const [roomCode, setRoomCode] = useState(() => randomRoomCode());
   const [mode, setMode] = useState('online'); // offline | online — 기본: 온라인 방
-  const [roomId, setRoomId] = useState(null);
+  const [roomId, setRoomId] = useState(() => {
+    try {
+      return sessionStorage.getItem('sisort_room_id') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (roomId) sessionStorage.setItem('sisort_room_id', roomId);
+      else sessionStorage.removeItem('sisort_room_id');
+    } catch {
+      /* 저장소 비허용 시 무시 */
+    }
+  }, [roomId]);
   const [isHost, setIsHost] = useState(false);
   const [hostPlayerId, setHostPlayerId] = useState(null);
   const [remoteRoom, setRemoteRoom] = useState(null);
@@ -385,7 +400,16 @@ export default function LobbyScreen({
       <div className="flex gap-2 mb-6">
         <button
           type="button"
-          onClick={() => { setMode('offline'); setRoomId(null); setErr(''); }}
+          onClick={() => {
+            setMode('offline');
+            setRoomId(null);
+            try {
+              sessionStorage.removeItem('sisort_room_id');
+            } catch {
+              /* ignore */
+            }
+            setErr('');
+          }}
           className={`rounded-full px-4 py-2 font-bold ${mode === 'offline' ? 'bg-blue-600' : 'bg-slate-700'}`}
         >
           오프라인

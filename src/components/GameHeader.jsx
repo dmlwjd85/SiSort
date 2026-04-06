@@ -18,9 +18,8 @@ export default function GameHeader({
   getLevelTime,
   onLeaveLobby,
 }) {
-  /* Firestore 동기화 값이 비정상일 때 repeat 등에서 예외가 나지 않도록 상한 적용 */
-  const safeLives = Math.max(0, Math.min(3, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
-  const emptyHearts = Math.max(0, 3 - safeLives);
+  /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) */
+  const safeLives = Math.max(0, Math.min(99, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
   const maxTime = getLevelTime(Math.max(1, Number(level) || 1));
   const barPct =
     maxTime > 0 ? Math.min(100, (Math.max(0, Number(timeLeft) || 0) / maxTime) * 100) : 0;
@@ -66,7 +65,14 @@ export default function GameHeader({
             🔍 길라잡이: {hints}개
           </button>
           <div className="text-xl sm:text-2xl tracking-widest text-red-500 drop-shadow-md">
-            {'♥'.repeat(safeLives)}{'♡'.repeat(emptyHearts)}
+            {safeLives > 12 ? (
+              <span className="font-bold">♥ ×{safeLives}</span>
+            ) : (
+              <>
+                {'♥'.repeat(safeLives)}
+                {safeLives <= 3 ? '♡'.repeat(3 - safeLives) : ''}
+              </>
+            )}
           </div>
         </div>
       </div>
