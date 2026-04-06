@@ -5,7 +5,7 @@ import PlayerHand from './PlayerHand.jsx';
 import ResultModal from './ResultModal.jsx';
 
 /**
- * 인게임 화면: 헤더·플레이 영역·손패·결과 모달 조합
+ * 인게임 화면: 헤더·플레이 영역·손패·결과 모달
  */
 export default function PlayScreen(props) {
   const {
@@ -21,8 +21,6 @@ export default function PlayScreen(props) {
     isPaused,
     timeLeft,
     getLevelTime,
-    ai1Cards,
-    ai2Cards,
     handleRevealAICard,
     lastPlayed,
     sortedPlayedStack,
@@ -34,7 +32,12 @@ export default function PlayScreen(props) {
     handlePlayCard,
     reviewedWords,
     setReviewedWords,
-    startLevel
+    startLevel,
+    opponentSlots,
+    cardsBySlot,
+    getOwnerLabel,
+    mySlotIndex,
+    onLeaveLobby,
   } = props;
 
   return (
@@ -52,11 +55,13 @@ export default function PlayScreen(props) {
         isPaused={isPaused}
         timeLeft={timeLeft}
         getLevelTime={getLevelTime}
+        onLeaveLobby={onLeaveLobby}
       />
 
       <PlayArea
-        ai1Cards={ai1Cards}
-        ai2Cards={ai2Cards}
+        opponentSlots={opponentSlots}
+        cardsBySlot={cardsBySlot}
+        getOwnerLabel={getOwnerLabel}
         isHintMode={isHintMode}
         handleRevealAICard={handleRevealAICard}
         lastPlayed={lastPlayed}
@@ -66,6 +71,7 @@ export default function PlayScreen(props) {
         isPreparing={isPreparing}
         prepTimeLeft={prepTimeLeft}
         userHand={userHand}
+        mySlotIndex={mySlotIndex}
       />
 
       <PlayerHand
@@ -86,6 +92,7 @@ export default function PlayScreen(props) {
         allCards={allCards}
         startLevel={startLevel}
         setGameState={setGameState}
+        onGoLobby={onLeaveLobby}
       />
     </div>
   );

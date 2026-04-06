@@ -15,7 +15,8 @@ export default function GameHeader({
   gameState,
   isPaused,
   timeLeft,
-  getLevelTime
+  getLevelTime,
+  onLeaveLobby,
 }) {
   return (
     <div className="bg-slate-800 p-4 shadow-md z-10">
@@ -23,11 +24,14 @@ export default function GameHeader({
         <div className="flex items-center gap-2 sm:gap-4">
           <button
             type="button"
-            onClick={() => setGameState('home')}
+            onClick={() => {
+              if (onLeaveLobby) onLeaveLobby();
+              else setGameState('home');
+            }}
             className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm sm:text-base font-bold transition-colors shadow"
-            title="홈 화면으로 나가기"
+            title="로비로 나가기"
           >
-            🏠 홈
+            🏠 로비
           </button>
           <button
             type="button"

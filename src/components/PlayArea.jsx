@@ -1,11 +1,23 @@
 import React from 'react';
 
+const OPPONENT_STYLES = [
+  'bg-purple-900/50 border-purple-500 text-purple-200',
+  'bg-indigo-900/50 border-indigo-500 text-indigo-200',
+  'bg-rose-900/50 border-rose-500 text-rose-200',
+  'bg-cyan-900/50 border-cyan-500 text-cyan-200',
+  'bg-amber-900/50 border-amber-500 text-amber-200',
+  'bg-emerald-900/50 border-emerald-500 text-emerald-200',
+  'bg-fuchsia-900/50 border-fuchsia-500 text-fuchsia-200',
+  'bg-sky-900/50 border-sky-500 text-sky-200',
+];
+
 /**
- * AI 영역, 중앙 카드, 사전 목록, 메시지·준비 오버레이
+ * 상대 슬롯 영역, 중앙 카드, 완성 사전, 메시지·준비 오버레이
  */
 export default function PlayArea({
-  ai1Cards,
-  ai2Cards,
+  opponentSlots,
+  cardsBySlot,
+  getOwnerLabel,
   isHintMode,
   handleRevealAICard,
   lastPlayed,
@@ -14,60 +26,64 @@ export default function PlayArea({
   message,
   isPreparing,
   prepTimeLeft,
-  userHand
+  userHand,
+  mySlotIndex,
 }) {
-  const ais = [
-    { id: 'ai1', name: '가상 플레이어 1', cards: ai1Cards, chipClass: 'bg-purple-900/50 border border-purple-500 text-purple-200' },
-    { id: 'ai2', name: '가상 플레이어 2', cards: ai2Cards, chipClass: 'bg-indigo-900/50 border border-indigo-500 text-indigo-200' }
-  ];
-
   return (
     <div className="flex-1 relative flex flex-col items-center justify-start p-4 overflow-y-auto">
-      <div className="w-full max-w-4xl flex justify-center gap-8 sm:gap-32 mt-4">
-        {ais.map((ai) => (
-          <div key={ai.id} className="flex flex-col items-center">
-            <div className={`${ai.chipClass} px-3 py-1 rounded-lg mb-2 text-sm font-bold`}>
-              🤖 {ai.name}
+      <div className="w-full max-w-5xl flex flex-wrap justify-center gap-6 sm:gap-10 mt-4">
+        {opponentSlots.map((op, i) => {
+          const cards = cardsBySlot(op.slotIndex);
+          const style = OPPONENT_STYLES[i % OPPONENT_STYLES.length];
+          return (
+            <div key={op.playerId} className="flex flex-col items-center max-w-[min(100%,14rem)]">
+              <div className={`${style} px-3 py-1 rounded-lg mb-2 text-xs sm:text-sm font-bold border text-center`}>
+                {op.isAI ? '🤖' : '👤'} {op.name}
+              </div>
+              <div className="flex gap-1 flex-wrap justify-center">
+                {cards.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleRevealAICard(c.id)}
+                    disabled={!isHintMode || c.revealed}
+                    className={`w-10 h-14 sm:w-12 sm:h-16 rounded shadow-sm flex flex-col items-center justify-center transition-transform ${
+                      c.revealed
+                        ? 'bg-white border-2 border-yellow-400 scale-110 z-10'
+                        : isHintMode
+                          ? 'bg-yellow-400/20 border border-yellow-400 animate-pulse hover:bg-yellow-400/40 cursor-pointer'
+                          : 'bg-slate-700 border border-slate-600'
+                    }`}
+                  >
+                    {c.revealed ? (
+                      <span className="text-slate-900 font-bold text-xs sm:text-sm">{c.word}</span>
+                    ) : (
+                      <span className="text-slate-500 text-[10px]">?</span>
+                    )}
+                  </button>
+                ))}
+                {cards.length === 0 && <span className="text-xs text-slate-500 mt-2">완료</span>}
+              </div>
             </div>
-            <div className="flex gap-1">
-              {ai.cards.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => handleRevealAICard(c.id)}
-                  disabled={!isHintMode || c.revealed}
-                  className={`w-12 h-16 sm:w-14 sm:h-20 rounded shadow-sm flex flex-col items-center justify-center transition-transform ${
-                    c.revealed
-                      ? 'bg-white border-2 border-yellow-400 scale-110 z-10'
-                      : isHintMode
-                        ? 'bg-yellow-400/20 border border-yellow-400 animate-pulse hover:bg-yellow-400/40 cursor-pointer'
-                        : 'bg-slate-700 border border-slate-600'
-                  }`}
-                >
-                  {c.revealed ? (
-                    <span className="text-slate-900 font-bold text-sm sm:text-base">{c.word}</span>
-                  ) : (
-                    <span className="text-slate-500 text-xs">?</span>
-                  )}
-                </button>
-              ))}
-              {ai.cards.length === 0 && <span className="text-xs text-slate-500 mt-2">완료</span>}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="w-56 h-72 border-4 border-dashed border-slate-600 rounded-3xl flex flex-col items-center justify-center relative bg-slate-800/50 shadow-inner mt-8">
         {lastPlayed ? (
-          <div className={`absolute inset-0 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-4 text-center animate-bounce-short border-4 ${lastPlayed.owner === 'user' ? 'border-blue-400' : 'border-purple-400'}`}>
-            <span className="text-5xl font-black text-slate-800 mb-2">{lastPlayed.word}</span>
-            <span className="text-sm text-slate-600 font-medium break-keep">{lastPlayed.desc}</span>
-            <span className="absolute bottom-3 text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-              {lastPlayed.owner === 'user' ? '내가 냄' : 'AI가 냄'}
+          <div
+            className={`absolute inset-0 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-4 text-center animate-bounce-short border-4 ${
+              parseSlot(lastPlayed.owner) === mySlotIndex ? 'border-blue-400' : 'border-purple-400'
+            }`}
+          >
+            <span className="text-4xl sm:text-5xl font-black text-slate-800 mb-2">{lastPlayed.word}</span>
+            <span className="text-xs sm:text-sm text-slate-600 font-medium break-keep">{lastPlayed.desc}</span>
+            <span className="absolute bottom-3 text-[10px] sm:text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+              {getOwnerLabel(lastPlayed.owner)}
             </span>
           </div>
         ) : (
-          <span className="text-slate-500 font-medium text-center px-4">
+          <span className="text-slate-500 font-medium text-center px-4 text-sm">
             가장 먼저 올 단어를<br />눈치껏 내세요!
           </span>
         )}
@@ -76,11 +92,16 @@ export default function PlayArea({
       <div className="w-full max-w-4xl mt-8 bg-slate-800/80 rounded-xl p-4 border border-slate-700">
         <h3 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2">
           <span>📜 완성되어 가는 사전</span>
-          <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">{sortedPlayedStack.length} / {allCards.length}</span>
+          <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">
+            {sortedPlayedStack.length} / {allCards.length}
+          </span>
         </h3>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-600">
           {sortedPlayedStack.map((card) => (
-            <div key={card.id} className="min-w-[100px] bg-slate-700 rounded-lg p-2 flex flex-col justify-between shrink-0 border border-slate-600">
+            <div
+              key={card.id}
+              className="min-w-[100px] bg-slate-700 rounded-lg p-2 flex flex-col justify-between shrink-0 border border-slate-600"
+            >
               <div className="text-lg font-bold text-white text-center border-b border-slate-600 pb-1 mb-1">{card.word}</div>
               <div className="text-[10px] text-slate-300 text-center leading-tight line-clamp-2">{card.desc}</div>
               <div className="text-[9px] text-slate-500 text-center mt-1">순서: {card.rank + 1}</div>
@@ -100,7 +121,7 @@ export default function PlayArea({
 
       {isPreparing && (
         <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md rounded-xl">
-          <h2 className="text-3xl md:text-4xl font-bold text-yellow-400 mb-8 animate-pulse text-center px-4 break-keep">
+          <h2 className="text-2xl md:text-3xl font-bold text-yellow-400 mb-8 animate-pulse text-center px-4 break-keep">
             내 카드를 확인하고 순서를 예상하세요!
           </h2>
 
@@ -108,19 +129,21 @@ export default function PlayArea({
             {userHand.map((card) => (
               <div
                 key={card.id}
-                className="w-32 h-44 sm:w-36 sm:h-48 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-3 text-slate-800 border-4 border-blue-400"
+                className="w-28 h-40 sm:w-32 sm:h-44 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-3 text-slate-800 border-4 border-blue-400"
               >
-                <span className="text-3xl sm:text-4xl font-black mb-2">{card.word}</span>
-                <span className="text-sm text-slate-600 text-center leading-tight break-keep">{card.desc}</span>
+                <span className="text-2xl sm:text-3xl font-black mb-2">{card.word}</span>
+                <span className="text-xs text-slate-600 text-center leading-tight break-keep">{card.desc}</span>
               </div>
             ))}
           </div>
 
-          <div className="text-7xl sm:text-8xl font-black text-white drop-shadow-2xl">
-            {prepTimeLeft}
-          </div>
+          <div className="text-7xl sm:text-8xl font-black text-white drop-shadow-2xl">{prepTimeLeft}</div>
         </div>
       )}
     </div>
   );
+}
+
+function parseSlot(owner) {
+  return parseInt(String(owner).replace(/^s/, ''), 10);
 }

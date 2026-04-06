@@ -1,29 +1,44 @@
-import React from 'react';
-import { useSilentDictionaryGame } from './hooks/useSilentDictionaryGame.js';
-import Home from './components/Home.jsx';
+import React, { useState, useEffect } from 'react';
+import NameGate from './components/NameGate.jsx';
+import LobbyScreen from './components/LobbyScreen.jsx';
 import PlayScreen from './components/PlayScreen.jsx';
+import { useSilentDictionaryGame } from './hooks/useSilentDictionaryGame.js';
+import { getOrCreatePlayerId } from './lib/playerId.js';
 
 /**
- * 침묵의 가나다 — 화면 전환만 담당하는 최상위 컴포넌트
+ * 최상위: 이름 → 로비 → 플레이
  */
 export default function App() {
+  const [playerName, setPlayerName] = useState(() => localStorage.getItem('sisort_name') || '');
+  const [phase, setPhase] = useState('lobby');
   const game = useSilentDictionaryGame();
+  const playerId = getOrCreatePlayerId();
 
-  if (game.gameState === 'home') {
+  // setPlayerContext는 ref만 갱신 — game 객체를 의존에 넣으면 매 렌더마다 실행됨
+  useEffect(() => {
+    game.setPlayerContext(playerId, playerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- playerId만 필요
+  }, [playerId]);
+
+  const onLeaveLobby = () => {
+    game.resetToLobby();
+    setPhase('lobby');
+  };
+
+  if (!playerName) {
+    return <NameGate onSave={setPlayerName} />;
+  }
+
+  if (phase === 'lobby') {
     return (
-      <Home
-        PACK_DATA={game.PACK_DATA}
-        selectedPackKey={game.selectedPackKey}
-        setSelectedPackKey={game.setSelectedPackKey}
-        startGame={game.startGame}
-        showRules={game.showRules}
-        setShowRules={game.setShowRules}
-        showWordList={game.showWordList}
-        setShowWordList={game.setShowWordList}
-        currentWordDB={game.currentWordDB}
+      <LobbyScreen
+        game={game}
+        playerName={playerName}
+        playerId={playerId}
+        onStartPlay={() => setPhase('play')}
       />
     );
   }
 
-  return <PlayScreen {...game} />;
+  return <PlayScreen {...game} onLeaveLobby={onLeaveLobby} />;
 }

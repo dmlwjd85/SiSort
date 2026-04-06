@@ -11,7 +11,8 @@ export default function ResultModal({
   setReviewedWords,
   allCards,
   startLevel,
-  setGameState
+  setGameState,
+  onGoLobby,
 }) {
   if (gameState !== 'level_clear' && gameState !== 'game_over' && gameState !== 'victory') return null;
 
@@ -84,10 +85,10 @@ export default function ResultModal({
           <p className="text-slate-300 mb-8">생명력을 모두 잃었습니다. (도달 레벨: {level})</p>
           <button
             type="button"
-            onClick={() => setGameState('home')}
+            onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}
             className="bg-slate-600 hover:bg-slate-500 text-white px-8 py-3 rounded-full font-bold text-xl transition-colors"
           >
-            처음으로 돌아가기
+            로비로 돌아가기
           </button>
         </div>
       )}
@@ -99,10 +100,10 @@ export default function ResultModal({
           <p className="text-slate-300 mb-8">모든 레벨의 사전 순서를 마스터하셨습니다!</p>
           <button
             type="button"
-            onClick={() => setGameState('home')}
+            onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}
             className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-8 py-3 rounded-full font-bold text-xl transition-colors shadow-lg shadow-yellow-500/50"
           >
-            다시 플레이
+            로비로
           </button>
         </div>
       )}
