@@ -9,6 +9,7 @@ import {
   subscribeActions,
   deleteActionDoc,
   pushPlayAction,
+  pushPrepReorderAction,
   returnRoomToLobby,
   playerSelfLeaveRoom,
   ROOM_MAX,
@@ -65,6 +66,8 @@ export function serializeGame(s) {
     allCards: s.allCards,
     playedStack: s.playedStack,
     selectedPackKey: s.selectedPackKey,
+    /** 슬롯별 손패 표시 순서(카드 id 배열, 랜덤 지급·준비 시간 정렬용) */
+    handDisplayOrder: s.handDisplayOrder ?? {},
   };
 }
 
@@ -147,8 +150,17 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     };
   });
 
+  /* 슬롯마다 손패를 사전순이 아닌 무작위 순서로 표시 */
+  const handDisplayOrder = {};
+  for (let si = 0; si < totalPlayers; si++) {
+    const own = slotOwner(si);
+    const ids = allCards.filter((c) => c.owner === own).map((c) => c.id);
+    handDisplayOrder[own] = shuffleArray([...ids]);
+  }
+
   return {
     allCards,
+    handDisplayOrder,
     playedStack: [],
     level: targetLevel,
     timeLeft: currentLevelTime,
@@ -190,6 +202,8 @@ export function useSilentDictionaryGame(options = {}) {
   const currentWordDB = PACK_DATA[selectedPackKey].words;
 
   const [allCards, setAllCards] = useState([]);
+  /** @type {Record<string, string[]>} 슬롯(owner 키)별 손패 카드 id 표시 순서 */
+  const [handDisplayOrder, setHandDisplayOrder] = useState({});
   const allCardsRef = useRef([]);
   /** 실수로 판이 끝난 뒤 같은 레벨 재시작을 이미 걸었는지(중복 방지) */
   const failedRoundRecoveryRef = useRef(false);
@@ -343,6 +357,26 @@ export function useSilentDictionaryGame(options = {}) {
       setAllCards(safeCards);
       setPlayedStack(safeStack);
       setSelectedPackKey(pk);
+
+      const rawHo = g.handDisplayOrder;
+      if (rawHo && typeof rawHo === 'object' && !Array.isArray(rawHo)) {
+        const ho = {};
+        for (const k of Object.keys(rawHo)) {
+          if (Array.isArray(rawHo[k])) ho[k] = rawHo[k].map((id) => String(id));
+        }
+        setHandDisplayOrder(ho);
+      } else {
+        const fallbackHo = {};
+        for (let si = 0; si < ROOM_MAX; si++) {
+          const key = slotOwner(si);
+          const ids = safeCards
+            .filter((c) => c.owner === key && c.status === 'hand')
+            .sort((a, b) => a.rank - b.rank)
+            .map((c) => c.id);
+          if (ids.length) fallbackHo[key] = ids;
+        }
+        setHandDisplayOrder(fallbackHo);
+      }
     } catch (e) {
       console.error('[hydrateFromGame]', e);
     }
@@ -367,6 +401,7 @@ export function useSilentDictionaryGame(options = {}) {
     setIsHintMode(false);
     setReviewedWords([]);
     setMessage('');
+    setHandDisplayOrder(bundle.handDisplayOrder ?? {});
   }, []);
 
   const startLevel = useCallback(
@@ -446,6 +481,7 @@ export function useSilentDictionaryGame(options = {}) {
       const bundle = buildLevelBundle(1, members, packKey, [], false);
       if (!bundle) return;
       setAllCards(bundle.allCards);
+      setHandDisplayOrder(bundle.handDisplayOrder ?? {});
       setPlayedStack(bundle.playedStack);
       setLevel(bundle.level);
       setTimeLeft(bundle.timeLeft);
@@ -474,6 +510,7 @@ export function useSilentDictionaryGame(options = {}) {
         allCards: bundle.allCards,
         playedStack: bundle.playedStack,
         selectedPackKey: packKey,
+        handDisplayOrder: bundle.handDisplayOrder ?? {},
       });
       await startRoomGame(db, roomId, hostPlayerId, snapshot);
     },
@@ -549,6 +586,7 @@ export function useSilentDictionaryGame(options = {}) {
     setReviewedWords([]);
     setIsPreparing(false);
     setPrepTimeLeft(5);
+    setHandDisplayOrder({});
   }, [syncNetRef]);
 
   /** 온라인: Firestore에 로비 반영 후 로컬 초기화 (로비 버튼·결과 화면) */
@@ -605,6 +643,15 @@ export function useSilentDictionaryGame(options = {}) {
       })
     );
 
+    const removedIds = new Set([wrongCard.id, ...toDiscard.map((c) => c.id)]);
+    setHandDisplayOrder((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        next[k] = next[k].filter((id) => !removedIds.has(id));
+      }
+      return next;
+    });
+
     setLives((prevLives) => {
       const newLives = prevLives - penalty;
       if (newLives <= 0) {
@@ -653,6 +700,12 @@ export function useSilentDictionaryGame(options = {}) {
           aiPlayAtWallRef.current = 0;
         }
         setAllCards((prev) => prev.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c)));
+        setHandDisplayOrder((prevHo) => {
+          const k = slotOwner(parseSlot(cardToPlay.owner));
+          const arr = prevHo[k];
+          if (!arr) return prevHo;
+          return { ...prevHo, [k]: arr.filter((id) => id !== cardToPlay.id) };
+        });
         setPlayedStack((prev) => [...prev, cardToPlay]);
 
         if (unplayedCards.length === 1) {
@@ -688,6 +741,12 @@ export function useSilentDictionaryGame(options = {}) {
             aiPlayAtWallRef.current = 0;
           }
           const next = prevCards.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c));
+          setHandDisplayOrder((prevHo) => {
+            const k = slotOwner(fromSlot);
+            const arr = prevHo[k];
+            if (!arr) return prevHo;
+            return { ...prevHo, [k]: arr.filter((id) => id !== cardToPlay.id) };
+          });
           setPlayedStack((prev) => [...prev, cardToPlay]);
           if (unplayedCards.length === 1) {
             setIsPaused(true);
@@ -887,6 +946,7 @@ export function useSilentDictionaryGame(options = {}) {
         setIsPreparing(false);
         setPrepTimeLeft(5);
         setGameState('home');
+        setHandDisplayOrder({});
         if (Array.isArray(room.members)) setSessionMembers(room.members);
         syncNetRef(null);
         try {
@@ -909,10 +969,23 @@ export function useSilentDictionaryGame(options = {}) {
     });
   }, [netRoom, hydrateFromGame, syncNetRef]);
 
-  /** ?몄뒪?? ?먭꺽 ?뚮젅???≪뀡 */
+  /** 호스트: 게스트 액션(카드 제출·준비 중 손패 순서) */
   useEffect(() => {
     if (!netRoom?.db || !netRoom?.roomId || !netRoom.isHost) return undefined;
     return subscribeActions(netRoom.db, netRoom.roomId, async (actionDocId, data) => {
+      if (data.type === 'REORDER_PREP') {
+        const { slot, order } = data;
+        if (typeof slot === 'number' && Array.isArray(order)) {
+          const key = slotOwner(slot);
+          setHandDisplayOrder((prev) => ({ ...prev, [key]: order.map((id) => String(id)) }));
+        }
+        try {
+          await deleteActionDoc(netRoom.db, netRoom.roomId, actionDocId);
+        } catch (e) {
+          console.error(e);
+        }
+        return;
+      }
       if (data.type !== 'PLAY_CARD') return;
       const { cardId, slot } = data;
       try {
@@ -924,6 +997,21 @@ export function useSilentDictionaryGame(options = {}) {
       applyRemotePlay(cardId, slot);
     });
   }, [netRoom, mySlotIndex, applyRemotePlay]);
+
+  /** 살펴보기 시간 중에만 손패 순서 변경(온라인 게스트는 호스트로 전달) */
+  const reorderMyHandPrep = useCallback(
+    (orderedIds) => {
+      if (!isPreparing) return;
+      const key = slotOwner(mySlotIndex);
+      const ids = orderedIds.map((id) => String(id));
+      setHandDisplayOrder((prev) => ({ ...prev, [key]: ids }));
+      const net = networkRef.current;
+      if (net.db && net.roomId && !net.isHost) {
+        pushPrepReorderAction(net.db, net.roomId, { slot: mySlotIndex, order: ids }).catch(console.error);
+      }
+    },
+    [isPreparing, mySlotIndex]
+  );
 
   /* 호스트→Firestore: 시간을 0.5초 단위로 반올림해 쓰기 빈도·페이로드 변동을 줄임 (랙 완화) */
   const gameBlobForNetwork = useMemo(() => {
@@ -946,6 +1034,7 @@ export function useSilentDictionaryGame(options = {}) {
       allCards,
       playedStack,
       selectedPackKey,
+      handDisplayOrder,
     });
   }, [
     gameState,
@@ -963,6 +1052,7 @@ export function useSilentDictionaryGame(options = {}) {
     allCards,
     playedStack,
     selectedPackKey,
+    handDisplayOrder,
   ]);
 
   useEffect(() => {
@@ -982,9 +1072,18 @@ export function useSilentDictionaryGame(options = {}) {
     return () => clearTimeout(t);
   }, [gameBlobForNetwork, gameState, netRoom]);
 
-  const userHand = allCards
-    .filter((c) => c.owner === slotOwner(mySlotIndex) && c.status === 'hand')
-    .sort((a, b) => a.rank - b.rank);
+  const userHand = useMemo(() => {
+    const key = slotOwner(mySlotIndex);
+    const handCards = allCards.filter((c) => c.owner === key && c.status === 'hand');
+    const order = handDisplayOrder[key];
+    const map = new Map(handCards.map((c) => [c.id, c]));
+    if (!order || order.length === 0) {
+      return [...handCards].sort((a, b) => a.rank - b.rank);
+    }
+    const ordered = order.map((id) => map.get(id)).filter(Boolean);
+    const missing = handCards.filter((c) => !order.includes(c.id));
+    return [...ordered, ...missing];
+  }, [allCards, handDisplayOrder, mySlotIndex]);
 
   const opponentSlots = sessionMembers
     .map((m, i) => ({ ...m, slotIndex: i }))
@@ -1051,6 +1150,7 @@ export function useSilentDictionaryGame(options = {}) {
     toggleHintMode,
     handleRevealAICard,
     handlePlayCard,
+    reorderMyHandPrep,
     userHand,
     lastPlayed,
     sortedPlayedStack,

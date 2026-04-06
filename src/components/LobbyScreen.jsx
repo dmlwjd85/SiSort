@@ -43,7 +43,7 @@ export default function LobbyScreen({
   const onlineOk = isFirebaseConfigured() && db;
 
   const [roomCode, setRoomCode] = useState(() => randomRoomCode());
-  const [mode, setMode] = useState('online'); // offline | online — 기본: 온라인 방
+  const [mode, setMode] = useState('offline'); // offline | online — 기본: 오프라인
   const [roomId, setRoomId] = useState(() => {
     try {
       return sessionStorage.getItem('sisort_room_id') || null;

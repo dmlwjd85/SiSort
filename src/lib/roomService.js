@@ -236,6 +236,16 @@ export async function pushPlayAction(db, roomId, { cardId, slot }) {
   });
 }
 
+/** 비호스트 → 호스트: 살펴보기 시간 중 손패 순서만 변경 */
+export async function pushPrepReorderAction(db, roomId, { slot, order }) {
+  await addDoc(collection(db, 'rooms', roomId, 'actions'), {
+    type: 'REORDER_PREP',
+    slot,
+    order,
+    createdAt: serverTimestamp(),
+  });
+}
+
 export function subscribeActions(db, roomId, onAdded) {
   const q = query(collection(db, 'rooms', roomId, 'actions'), orderBy('createdAt', 'asc'));
   return onSnapshot(q, (snap) => {
