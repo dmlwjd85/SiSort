@@ -4,10 +4,12 @@
 @layer base {
   body {
     margin: 0;
+    /* 로그인·로비·플레이 전역 통일 (Jua + 시스템 한글 폰트) */
+    font-family: 'Jua', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   }
 
   .font-sans {
-    font-family: 'Jua', sans-serif !important;
+    font-family: 'Jua', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important;
   }
 
   #root {
