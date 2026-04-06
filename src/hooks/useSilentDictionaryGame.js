@@ -15,7 +15,7 @@ import {
   ROOM_MAX,
 } from '../lib/roomService.js';
 
-const DEFAULT_PACK_KEY = 'grade6';
+const DEFAULT_PACK_KEY = 'kindergarten';
 
 function resolvePack(packKey) {
   const p = PACK_DATA[packKey];
@@ -187,14 +187,18 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
 
 /**
  * 침묵의 사전 게임 훅 (2~15명, 온라인 시 Firestore 동기화)
- * @param {{ onReturnedToLobby?: () => void }} [options] — 방이 로비로 돌아올 때(호스트 복귀·스냅샷) 상위에서 phase 전환 등
+ * @param {{ onReturnedToLobby?: () => void, onLevelCleared?: (packKey: string, clearedLevel: number) => void }} [options]
  */
 export function useSilentDictionaryGame(options = {}) {
-  const { onReturnedToLobby } = options;
+  const { onReturnedToLobby, onLevelCleared } = options;
   const onReturnedToLobbyRef = useRef(onReturnedToLobby);
+  const onLevelClearedRef = useRef(onLevelCleared);
   useEffect(() => {
     onReturnedToLobbyRef.current = onReturnedToLobby;
   }, [onReturnedToLobby]);
+  useEffect(() => {
+    onLevelClearedRef.current = onLevelCleared;
+  }, [onLevelCleared]);
   const [gameState, setGameState] = useState('home');
   const [level, setLevel] = useState(1);
   const [lives, setLives] = useState(3);
@@ -212,8 +216,8 @@ export function useSilentDictionaryGame(options = {}) {
   const [isPreparing, setIsPreparing] = useState(false);
   const [prepTimeLeft, setPrepTimeLeft] = useState(5);
 
-  const [selectedPackKey, setSelectedPackKey] = useState('grade6');
-  const currentWordDB = PACK_DATA[selectedPackKey].words;
+  const [selectedPackKey, setSelectedPackKey] = useState('kindergarten');
+  const currentWordDB = PACK_DATA[selectedPackKey]?.words ?? PACK_DATA.kindergarten.words;
 
   const [allCards, setAllCards] = useState([]);
   /** @type {Record<string, string[]>} 슬롯(owner 키)별 손패 카드 id 표시 순서 */
@@ -249,6 +253,15 @@ export function useSilentDictionaryGame(options = {}) {
   useEffect(() => {
     livesRef.current = lives;
   }, [lives]);
+
+  /** 레벨 클리어 직후(모달 진입 시점) — 서버에 최대 레벨 기록 */
+  const prevGameStateForClearRef = useRef('');
+  useEffect(() => {
+    if (gameState === 'level_clear' && prevGameStateForClearRef.current !== 'level_clear') {
+      onLevelClearedRef.current?.(selectedPackKey, level);
+    }
+    prevGameStateForClearRef.current = gameState;
+  }, [gameState, level, selectedPackKey]);
 
   useEffect(() => {
     allCardsRef.current = allCards;

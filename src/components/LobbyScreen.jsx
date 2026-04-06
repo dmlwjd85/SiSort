@@ -14,6 +14,7 @@ import {
 } from '../lib/roomService.js';
 import { safeSetItem } from '../utils/safeStorage.js';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomCode.js';
+import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
 
 /**
  * 로비: 4자 방 코드, 멀티플레이(Firebase), 오프라인, AI 인원 조절
@@ -24,6 +25,10 @@ export default function LobbyScreen({
   playerId,
   setPlayerName,
   onStartPlay,
+  isGuest = false,
+  packProgress = {},
+  onLogout,
+  onOpenAdmin,
 }) {
   const {
     PACK_DATA,
@@ -80,6 +85,19 @@ export default function LobbyScreen({
   ]);
 
   const roomMax = mode === 'online' ? ONLINE_ROOM_MAX : ROOM_MAX;
+
+  const unlockedPackKeys = useMemo(
+    () => getUnlockedPackKeys({ isGuest, packProgress }),
+    [isGuest, packProgress]
+  );
+
+  useEffect(() => {
+    if (!unlockedPackKeys.has(selectedPackKey)) {
+      const first =
+        PACK_UNLOCK_ORDER.find((k) => unlockedPackKeys.has(k)) || 'kindergarten';
+      setSelectedPackKey(first);
+    }
+  }, [unlockedPackKeys, selectedPackKey, setSelectedPackKey]);
 
   useEffect(() => {
     guestPlayStartedRef.current = false;
@@ -224,6 +242,7 @@ export default function LobbyScreen({
   };
 
   const syncPackOnline = async (key) => {
+    if (!unlockedPackKeys.has(key)) return;
     setSelectedPackKey(key);
     if (!onlineOk || !roomId || !isHost) return;
     try {
@@ -382,12 +401,35 @@ export default function LobbyScreen({
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center p-4 text-white font-sans pb-24">
+      <div className="w-full max-w-2xl flex flex-wrap justify-end gap-2 mt-2">
+        {onOpenAdmin && (
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="rounded-lg bg-amber-900/80 border border-amber-600 px-3 py-1.5 text-xs font-bold text-amber-100"
+          >
+            관리자
+          </button>
+        )}
+        {onLogout && (
+          <button
+            type="button"
+            onClick={() => void onLogout()}
+            className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-slate-200"
+          >
+            로그아웃
+          </button>
+        )}
+      </div>
       <h1 className="text-4xl md:text-5xl font-black mt-6 mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
         침묵의 가나다
       </h1>
-      <p className="text-slate-400 text-sm mb-2 text-center">
+      <p className="text-slate-400 text-sm mb-2 text-center break-keep">
         {playerName}님 — 방 {ROOM_MIN}~{roomMax}명
         {mode === 'online' ? ' (온라인 최대 4명)' : ''}
+        {isGuest && (
+          <span className="block text-amber-300/95 text-xs mt-1">게스트: 유치원·6학년 사회 팩 이용</span>
+        )}
       </p>
       <button
         type="button"
@@ -487,18 +529,34 @@ export default function LobbyScreen({
 
       <div className="w-full max-w-2xl bg-slate-800 rounded-2xl border border-slate-700 p-4 mb-4">
         <h3 className="text-yellow-400 font-bold mb-2">단어 수준</h3>
+        <p className="text-[11px] text-slate-500 mb-2 break-keep">
+          {!isGuest && '회원: 유치원 팩부터 시작합니다. 이전 팩을 8레벨까지 클리어하면 다음 팩이 열립니다.'}
+        </p>
         <div className="flex flex-wrap gap-2">
-          {Object.entries(PACK_DATA).map(([key, pack]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => (mode === 'online' && isHost && onlineOk ? syncPackOnline(key) : setSelectedPackKey(key))}
-              disabled={mode === 'online' && !isHost}
-              className={`rounded-full px-3 py-2 text-sm font-bold ${selectedPackKey === key ? 'bg-yellow-400 text-slate-900' : 'bg-slate-700'} ${mode === 'online' && !isHost ? 'opacity-60' : ''}`}
-            >
-              {pack.name}
-            </button>
-          ))}
+          {Object.entries(PACK_DATA).map(([key, pack]) => {
+            const locked = !unlockedPackKeys.has(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                title={locked ? '이전 팩 8레벨 클리어 시 해제 (게스트는 유치원·6학년 사회만)' : pack.name}
+                onClick={() => {
+                  if (locked) return;
+                  if (mode === 'online' && isHost && onlineOk) void syncPackOnline(key);
+                  else setSelectedPackKey(key);
+                }}
+                disabled={locked || (mode === 'online' && !isHost)}
+                className={`rounded-full px-3 py-2 text-sm font-bold ${
+                  selectedPackKey === key ? 'bg-yellow-400 text-slate-900' : 'bg-slate-700'
+                } ${mode === 'online' && !isHost ? 'opacity-60' : ''} ${
+                  locked ? 'opacity-40 cursor-not-allowed line-through' : ''
+                }`}
+              >
+                {locked ? '🔒 ' : ''}
+                {pack.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
