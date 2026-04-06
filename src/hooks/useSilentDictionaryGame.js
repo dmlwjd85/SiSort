@@ -1,14 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
-
-const DEFAULT_PACK_KEY = 'grade6';
-
-function resolvePack(packKey) {
-  const p = PACK_DATA[packKey];
-  if (p?.words?.length) return { key: packKey, pack: p };
-  return { key: DEFAULT_PACK_KEY, pack: PACK_DATA[DEFAULT_PACK_KEY] };
-}
-import { shuffleArray, getLevelTime } from '../utils/helpers.js';
+import { shuffleArray, getLevelTime, assignDictionaryRanks } from '../utils/helpers.js';
 import { pickWordsBalancedByChoseong } from '../utils/wordPick.js';
 import {
   startRoomGame,
@@ -18,6 +10,14 @@ import {
   deleteActionDoc,
   pushPlayAction,
 } from '../lib/roomService.js';
+
+const DEFAULT_PACK_KEY = 'grade6';
+
+function resolvePack(packKey) {
+  const p = PACK_DATA[packKey];
+  if (p?.words?.length) return { key: packKey, pack: p };
+  return { key: DEFAULT_PACK_KEY, pack: PACK_DATA[DEFAULT_PACK_KEY] };
+}
 
 const TOTAL_LEVELS = 10;
 
@@ -91,11 +91,12 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
   }
   const owners = shuffleArray(slotIndices).map((si) => slotOwner(si));
 
-  const sortedWords = [...selectedWords].sort((a, b) => a.word.localeCompare(b.word, 'ko'));
+  /* 사전 가나다순 고유 순위 (동일 단어 중복·findIndex(-1) 오류 방지) */
+  const ranks = assignDictionaryRanks(selectedWords);
   const currentLevelTime = getLevelTime(targetLevel);
 
   const allCards = selectedWords.map((item, idx) => {
-    const rank = sortedWords.findIndex((sw) => sw.word === item.word);
+    const rank = ranks[idx];
     const targetTime = currentLevelTime - (currentLevelTime / (totalCardsNeeded + 1)) * (rank + 1);
     return {
       id: `${item.word}-${idx}-${targetLevel}`,
