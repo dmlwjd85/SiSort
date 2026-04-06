@@ -11,6 +11,14 @@ const defaultCaps = {
   showAdminPanel: false,
 };
 
+/** 모바일에서 한 줄로 보이도록 이름 앞 4글자만(전체는 title) */
+function shortName4(s) {
+  const t = typeof s === 'string' ? s.trim() : '';
+  if (!t) return '—';
+  if (t.length <= 4) return t;
+  return `${t.slice(0, 4)}…`;
+}
+
 /**
  * 교사용: 가입 회원 목록·팩별 최대 레벨·접속 요약(기록 조회 권한)
  * 마스터·unlockMembers 권한: 회원별 팩 추가 잠금 해제(packUnlockBonus) 편집
@@ -104,8 +112,8 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-      <div className="bg-slate-800 border border-slate-600 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-xl">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-2 sm:p-4">
+      <div className="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-[min(100vw-0.5rem,26rem)] lg:max-w-5xl max-h-[92vh] flex flex-col shadow-xl">
         <div className="flex justify-between items-center p-4 border-b border-slate-600 flex-wrap gap-2">
           <div>
             <h2 className="text-xl font-bold text-amber-300 flex flex-wrap items-center gap-2">
@@ -134,13 +142,101 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
             <p className="text-slate-400">등록된 사용자가 없습니다.</p>
           )}
           {!loading && rows.length > 0 && (
-            <div className="overflow-x-auto">
+            <>
+              {/* 모바일·좁은 화면: 가로 한눈에 — 이름 4글자 축약, 카드 폭 좁게 */}
+              <div className="lg:hidden space-y-2">
+                {rows.map((r) => {
+                  const pp = r.packProgress && typeof r.packProgress === 'object' ? r.packProgress : {};
+                  const legal = r.displayName || '';
+                  const shown = r.shownName || r.displayName || '';
+                  return (
+                    <div
+                      key={r.id}
+                      className="rounded-xl border border-slate-600/90 bg-slate-900/70 px-2.5 py-2 text-[11px] text-slate-200"
+                    >
+                      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                        <span
+                          className="font-bold text-amber-100/95 whitespace-nowrap shrink-0"
+                          title={legal || undefined}
+                        >
+                          {shortName4(legal)}
+                          {r.id === currentUid && <span className="ml-0.5 font-normal text-slate-500">(나)</span>}
+                        </span>
+                        <span className="text-slate-400 whitespace-nowrap shrink-0" title={shown || undefined}>
+                          표시 {shortName4(shown)}
+                        </span>
+                        <span className="text-slate-500 tabular-nums whitespace-nowrap shrink-0">
+                          {r.birthDate || '—'}
+                        </span>
+                      </div>
+                      {showStats && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-700/80 pt-1.5 text-slate-400">
+                          <span className="whitespace-nowrap">
+                            인정 <span className="text-slate-200 tabular-nums font-medium">
+                              {r.playStats?.eligibleLevelClears != null ? r.playStats.eligibleLevelClears : '—'}
+                            </span>
+                          </span>
+                          <span className="whitespace-nowrap">
+                            접속{' '}
+                            <span className="text-slate-200">
+                              {r.accessCount != null ? `${r.accessCount}회` : '—'}
+                            </span>
+                          </span>
+                        </div>
+                      )}
+                      {showStats && (
+                        <div className="mt-1.5 grid grid-cols-5 gap-x-1 gap-y-1 text-[9px] leading-tight">
+                          {packKeys.map((k) => {
+                            const v = pp[k];
+                            const head = (PACK_DATA[k]?.name ?? k).slice(0, 4);
+                            return (
+                              <div key={k} className="min-w-0 text-center" title={PACK_DATA[k]?.name ?? k}>
+                                <div className="text-slate-500 truncate">{head}</div>
+                                <div className="tabular-nums text-slate-200">{v != null && v !== '' ? v : '—'}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {showUnlock && (
+                          <button
+                            type="button"
+                            onClick={() => openUnlockModal(r)}
+                            className="rounded-lg bg-amber-700/80 hover:bg-amber-600 px-2 py-1 text-[10px] font-bold text-white whitespace-nowrap"
+                          >
+                            팩 설정
+                            {Array.isArray(r.packUnlockBonus) && r.packUnlockBonus.length > 0 ? (
+                              <span className="ml-1 opacity-90">+{r.packUnlockBonus.length}</span>
+                            ) : null}
+                          </button>
+                        )}
+                        {master &&
+                          (r.id === currentUid ? (
+                            <span className="text-[10px] text-slate-500">삭제 불가(본인)</span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={deleteBusy}
+                              onClick={() => void handleDeleteMember(r)}
+                              className="rounded-lg bg-rose-900/80 hover:bg-rose-800 border border-rose-600/50 px-2 py-1 text-[10px] font-bold text-rose-100 disabled:opacity-40 whitespace-nowrap"
+                            >
+                              삭제
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full text-left text-sm text-slate-200 border-collapse">
                 <thead>
                   <tr className="border-b border-slate-600 text-slate-400">
-                    <th className="py-2 pr-3">실명</th>
-                    <th className="py-2 pr-3">표시 이름</th>
-                    <th className="py-2 pr-3">생년월일</th>
+                    <th className="py-2 pr-3 whitespace-nowrap">실명</th>
+                    <th className="py-2 pr-3 whitespace-nowrap">표시 이름</th>
+                    <th className="py-2 pr-3 whitespace-nowrap">생년월일</th>
                     {showStats && (
                       <th className="py-2 pr-3 whitespace-nowrap">인정 클리어</th>
                     )}
@@ -160,13 +256,13 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-slate-700/80">
-                      <td className="py-2 pr-3">
+                      <td className="py-2 pr-3 whitespace-nowrap max-w-[12rem] truncate" title={r.displayName || undefined}>
                         {r.displayName || '—'}
                         {r.id === currentUid && (
                           <span className="ml-1 text-[10px] text-slate-500">(나)</span>
                         )}
                       </td>
-                      <td className="py-2 pr-3 text-xs">{r.shownName || r.displayName || '—'}</td>
+                      <td className="py-2 pr-3 text-xs whitespace-nowrap max-w-[10rem] truncate" title={(r.shownName || r.displayName) || undefined}>{r.shownName || r.displayName || '—'}</td>
                       <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{r.birthDate || '—'}</td>
                       {showStats && (
                         <td className="py-2 pr-3 text-xs tabular-nums text-center">
@@ -230,7 +326,8 @@ export default function AdminPanel({ open, onClose, capabilities = defaultCaps, 
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
           <p className="text-[11px] text-slate-500 mt-4 break-keep">
             {showStats && (
