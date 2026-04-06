@@ -78,6 +78,38 @@ function pickAiIntentionalBlunderCard(unplayedCards, lowestRank, aiSlot, livesNo
   return wrong[Math.floor(Math.random() * wrong.length)];
 }
 
+/** 오프라인에서 사람 1명·AI 1명만 있는 세션(1대1) */
+function isOfflineOneVsOneAi(members, hasNetDb) {
+  if (hasNetDb) return false;
+  if (!members || members.length !== 2) return false;
+  let h = 0;
+  let a = 0;
+  for (const m of members) {
+    if (!m) continue;
+    if (m.isAI) a += 1;
+    else h += 1;
+  }
+  return h === 1 && a === 1;
+}
+
+/**
+ * 이번 선두가 사람 손에 있을 때 — 남은 시간·남은 장수로 촉박하면 AI가 오답으로 끼어들 수 있음
+ * (기다리면 AI가 정답만 내서 너무 쉬워지는 것 방지)
+ */
+function shouldAiForceWrongWhenHumanStalls(currentTime, unplayedCount, level) {
+  const T0 = getLevelTime(level);
+  if (currentTime <= 0.2 || unplayedCount < 2) return false;
+  const elapsed = T0 - currentTime;
+  /* 라운드 직후 짧은 시간은 사람에게 양보 */
+  if (elapsed < Math.min(3.2, T0 * 0.11)) return false;
+  const per = currentTime / unplayedCount;
+  /* 장당 남은 초가 넉넉하면 대기 */
+  if (per >= 1.18) return false;
+  /* 전체 제한 시간의 상당 부분이 남았으면(초반) 아직 끼어들지 않음 */
+  if (currentTime > T0 * 0.72) return false;
+  return true;
+}
+
 export function serializeGame(s) {
   return {
     v: 1,
@@ -266,6 +298,9 @@ export function useSilentDictionaryGame(options = {}) {
   const aiPlayScheduledCardIdRef = useRef('');
   /** 직전에 정상 제출한 플레이어가 사람이면 true — AI가 다음 수에 약간 더 늦게 반응 */
   const aiLastPlayWasHumanRef = useRef(false);
+  /** 오프라인 1대1: 사람이 선두 카드를 안 낼 때 AI 오답 끼어들기 스케줄 */
+  const aiHumanStallForceAtRef = useRef(0);
+  const aiHumanStallForceCardIdRef = useRef('');
   const [playedStack, setPlayedStack] = useState([]);
 
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
@@ -474,6 +509,8 @@ export function useSilentDictionaryGame(options = {}) {
     aiPlayAtWallRef.current = 0;
     aiPlayScheduledCardIdRef.current = '';
     aiLastPlayWasHumanRef.current = false;
+    aiHumanStallForceAtRef.current = 0;
+    aiHumanStallForceCardIdRef.current = '';
     setAllCards(bundle.allCards);
     setPlayedStack(bundle.playedStack);
     setLevel(bundle.level);
@@ -552,6 +589,8 @@ export function useSilentDictionaryGame(options = {}) {
       aiPlayAtWallRef.current = 0;
       aiPlayScheduledCardIdRef.current = '';
       aiLastPlayWasHumanRef.current = false;
+      aiHumanStallForceAtRef.current = 0;
+      aiHumanStallForceCardIdRef.current = '';
       syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
       setSessionMembers(members);
       setMySlotIndex(mySlot);
@@ -655,6 +694,8 @@ export function useSilentDictionaryGame(options = {}) {
     aiPlayAtWallRef.current = 0;
     aiPlayScheduledCardIdRef.current = '';
     aiLastPlayWasHumanRef.current = false;
+    aiHumanStallForceAtRef.current = 0;
+    aiHumanStallForceCardIdRef.current = '';
     syncNetRef(null);
     setGameState('home');
     setSessionMembers([]);
@@ -813,6 +854,8 @@ export function useSilentDictionaryGame(options = {}) {
           aiPlayAtWallRef.current = 0;
         }
         aiLastPlayWasHumanRef.current = !!(mem && !mem.isAI);
+        aiHumanStallForceAtRef.current = 0;
+        aiHumanStallForceCardIdRef.current = '';
         setAllCards((prev) => prev.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c)));
         setHandDisplayOrder((prevHo) => {
           const k = slotOwner(parseSlot(cardToPlay.owner));
@@ -865,6 +908,8 @@ export function useSilentDictionaryGame(options = {}) {
           aiPlayAtWallRef.current = 0;
         }
         aiLastPlayWasHumanRef.current = !!(m && !m.isAI);
+        aiHumanStallForceAtRef.current = 0;
+        aiHumanStallForceCardIdRef.current = '';
         setAllCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: 'played' } : c)));
         setHandDisplayOrder((prevHo) => {
           const k = slotOwner(fromSlot);
@@ -969,7 +1014,45 @@ export function useSilentDictionaryGame(options = {}) {
       if (!cardToPlay) return;
 
       const si = parseSlot(cardToPlay.owner);
-      if (si < 0 || !members[si] || members[si].isAI !== true) return;
+      if (si < 0 || !members[si]) return;
+
+      /* 선두가 사람(오프라인 1대1): 남은 시간이 촉박하면 AI가 손에서 오답을 내어 진행(정답만 기다리기 방지) */
+      if (members[si].isAI !== true) {
+        const netDb = !!networkRef.current?.db;
+        if (isOfflineOneVsOneAi(members, netDb) && unplayedCards.length >= 2) {
+          const aiSlot = members.findIndex((m) => m && m.isAI);
+          if (aiSlot >= 0) {
+            const wrongPool = unplayedCards.filter(
+              (c) => parseSlot(c.owner) === aiSlot && c.rank > lowestRank
+            );
+            if (wrongPool.length > 0 && shouldAiForceWrongWhenHumanStalls(currentTime, unplayedCards.length, level)) {
+              const sid = aiHumanStallForceCardIdRef.current;
+              if (sid && !wrongPool.some((c) => c.id === sid)) {
+                aiHumanStallForceAtRef.current = 0;
+                aiHumanStallForceCardIdRef.current = '';
+              }
+              if (aiHumanStallForceAtRef.current === 0) {
+                const pick = wrongPool[Math.floor(Math.random() * wrongPool.length)];
+                aiHumanStallForceCardIdRef.current = pick.id;
+                aiHumanStallForceAtRef.current = Date.now() + 140 + Math.random() * 360;
+              }
+              if (Date.now() >= aiHumanStallForceAtRef.current) {
+                const forced = unplayedCards.find((c) => c.id === aiHumanStallForceCardIdRef.current);
+                aiHumanStallForceAtRef.current = 0;
+                aiHumanStallForceCardIdRef.current = '';
+                if (forced) handlePlayCard(forced);
+              }
+            } else {
+              aiHumanStallForceAtRef.current = 0;
+              aiHumanStallForceCardIdRef.current = '';
+            }
+          }
+        }
+        return;
+      }
+
+      aiHumanStallForceAtRef.current = 0;
+      aiHumanStallForceCardIdRef.current = '';
 
       /* 마지막 한 장(AI): 사람처럼 수백 ms 단위 지연 — 라운드 끝 직전에는 기존처럼 맞춤 */
       if (unplayedCards.length === 1) {
@@ -1011,7 +1094,7 @@ export function useSilentDictionaryGame(options = {}) {
       const blunder = pickAiIntentionalBlunderCard(unplayedCards, lowestRank, si, livesRef.current);
       handlePlayCard(blunder || cardToPlay);
     },
-    [allCards, handlePlayCard]
+    [allCards, handlePlayCard, level]
   );
 
   useEffect(() => {
@@ -1071,6 +1154,8 @@ export function useSilentDictionaryGame(options = {}) {
         aiPlayAtWallRef.current = 0;
         aiPlayScheduledCardIdRef.current = '';
         aiLastPlayWasHumanRef.current = false;
+        aiHumanStallForceAtRef.current = 0;
+        aiHumanStallForceCardIdRef.current = '';
         setAllCards([]);
         setPlayedStack([]);
         setMessage('');
