@@ -15,6 +15,7 @@ const OPPONENT_STYLES = [
  * 상대 슬롯 영역, 중앙 카드, 완성 사전, 메시지·준비 오버레이
  */
 export default function PlayArea({
+  gameState,
   opponentSlots,
   cardsBySlot,
   getOwnerLabel,
@@ -29,8 +30,13 @@ export default function PlayArea({
   userHand,
   mySlotIndex,
 }) {
+  /* 레벨 클리어 복습 단계: 모바일에서 제출 스택·손패·중앙 카드 등이 보이면 퀴즈 정답이 노출됨 → 영역 전체 숨김 */
+  const hideAllDuringMobileReview =
+    gameState === 'level_clear' ? 'max-md:hidden' : '';
   return (
-    <div className="flex-1 relative flex flex-col items-center justify-start p-4 overflow-y-auto">
+    <div
+      className={`flex-1 relative flex flex-col items-center justify-start p-4 overflow-y-auto ${hideAllDuringMobileReview}`}
+    >
       <div className="w-full max-w-5xl flex flex-wrap justify-center gap-6 sm:gap-10 mt-4">
         {opponentSlots.map((op, i) => {
           const cards = cardsBySlot(op.slotIndex);

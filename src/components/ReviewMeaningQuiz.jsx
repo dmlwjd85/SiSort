@@ -29,7 +29,7 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose }
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="review-quiz-title"

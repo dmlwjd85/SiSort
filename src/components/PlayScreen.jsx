@@ -59,6 +59,7 @@ export default function PlayScreen(props) {
       />
 
       <PlayArea
+        gameState={gameState}
         opponentSlots={opponentSlots}
         cardsBySlot={cardsBySlot}
         getOwnerLabel={getOwnerLabel}
@@ -74,14 +75,16 @@ export default function PlayScreen(props) {
         mySlotIndex={mySlotIndex}
       />
 
-      <PlayerHand
-        userHand={userHand}
-        handlePlayCard={handlePlayCard}
-        gameState={gameState}
-        isPaused={isPaused}
-        isHintMode={isHintMode}
-        isPreparing={isPreparing}
-      />
+      <div className={gameState === 'level_clear' ? 'max-md:hidden' : ''}>
+        <PlayerHand
+          userHand={userHand}
+          handlePlayCard={handlePlayCard}
+          gameState={gameState}
+          isPaused={isPaused}
+          isHintMode={isHintMode}
+          isPreparing={isPreparing}
+        />
+      </div>
 
       <ResultModal
         gameState={gameState}

@@ -717,14 +717,17 @@ export function useSilentDictionaryGame() {
       const si = parseSlot(cardToPlay.owner);
       if (si < 0 || !members[si] || members[si].isAI !== true) return;
 
-      /* 마지막 한 장: targetTime과 무관하게 남은 시간(초) 안에서 랜덤 시각에 제출 */
+      /* 마지막 한 장: 남은 시간 끝나기 전에 반드시 제출 (지연은 짧게 상한, 종료 0.1초 전까지 클램프) */
       if (unplayedCards.length === 1) {
-        const lowTime = currentTime <= 0.25;
-        if (aiLastCardPlayAtRef.current === 0 && !lowTime) {
-          const maxWaitMs = Math.max(100, currentTime * 1000);
-          aiLastCardPlayAtRef.current = Date.now() + Math.random() * maxWaitMs;
+        const remainingMs = Math.max(0, currentTime * 1000);
+        const roundEndAt = Date.now() + remainingMs;
+        if (aiLastCardPlayAtRef.current === 0) {
+          const maxDelay = Math.min(1200, Math.max(80, remainingMs * 0.35));
+          const jitter = Math.random() * maxDelay;
+          const planned = Date.now() + jitter;
+          aiLastCardPlayAtRef.current = Math.min(planned, Math.max(Date.now() + 40, roundEndAt - 100));
         }
-        if (lowTime || Date.now() >= aiLastCardPlayAtRef.current) {
+        if (currentTime <= 0.18 || Date.now() >= aiLastCardPlayAtRef.current) {
           aiLastCardPlayAtRef.current = 0;
           handlePlayCard(cardToPlay);
         }
