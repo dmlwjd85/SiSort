@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
-import { shuffleArray, getLevelTime, assignDictionaryRanks } from '../utils/helpers.js';
+import { shuffleArray, getLevelTime, assignDictionaryRanks, dedupeWordEntriesByWord } from '../utils/helpers.js';
 import { pickWordsBalancedByChoseong } from '../utils/wordPick.js';
 import {
   startRoomGame,
@@ -64,8 +64,8 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
   const cardsPerPlayer = targetLevel;
   const totalCardsNeeded = totalPlayers * cardsPerPlayer;
   const { pack } = resolvePack(packKey);
-  const wordPool = (pack.words || []).filter(
-    (w) => w && typeof w.word === 'string' && w.word.length > 0
+  const wordPool = dedupeWordEntriesByWord(
+    (pack.words || []).filter((w) => w && typeof w.word === 'string' && w.word.length > 0)
   );
   if (wordPool.length < totalCardsNeeded) return null;
 
@@ -147,6 +147,7 @@ export function useSilentDictionaryGame() {
   const currentWordDB = PACK_DATA[selectedPackKey].words;
 
   const [allCards, setAllCards] = useState([]);
+  const allCardsRef = useRef([]);
   const [playedStack, setPlayedStack] = useState([]);
 
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
@@ -163,6 +164,10 @@ export function useSilentDictionaryGame() {
   useEffect(() => {
     sessionMembersRef.current = sessionMembers;
   }, [sessionMembers]);
+
+  useEffect(() => {
+    allCardsRef.current = allCards;
+  }, [allCards]);
 
   useEffect(() => {
     const fn = () => setDocHidden(document.hidden);
@@ -517,6 +522,15 @@ export function useSilentDictionaryGame() {
   );
 
   const handleTimeout = useCallback(() => {
+    /* 레벨 클리어 직전 타이밍 레이스: 손에 남은 카드가 없으면 생명력 차감 없이 클리어 처리 */
+    const cards = allCardsRef.current;
+    const unplayed = cards.filter((c) => c.status === 'hand');
+    if (unplayed.length === 0 && cards.length > 0) {
+      setIsPaused(true);
+      setGameState((g) => (g === 'playing' ? 'level_clear' : g));
+      return;
+    }
+
     setIsPaused(true);
     setLives((prev) => {
       const newLives = prev - 1;

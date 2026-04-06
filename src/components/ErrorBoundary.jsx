@@ -26,13 +26,22 @@ export default class ErrorBoundary extends React.Component {
             화면을 불러오는 중 오류가 났습니다. 아래 버튼으로 새로고침해 보세요. 계속되면 다른 브라우저나
             사생활 보호 모드 해제 후 다시 시도해 주세요.
           </p>
-          <button
-            type="button"
-            className="rounded-xl bg-blue-600 hover:bg-blue-500 px-6 py-3 font-bold"
-            onClick={() => window.location.reload()}
-          >
-            새로고침
-          </button>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              type="button"
+              className="rounded-xl bg-slate-600 hover:bg-slate-500 px-5 py-3 font-bold"
+              onClick={() => this.setState({ hasError: false, error: null })}
+            >
+              다시 시도
+            </button>
+            <button
+              type="button"
+              className="rounded-xl bg-blue-600 hover:bg-blue-500 px-5 py-3 font-bold"
+              onClick={() => window.location.reload()}
+            >
+              새로고침
+            </button>
+          </div>
         </div>
       );
     }

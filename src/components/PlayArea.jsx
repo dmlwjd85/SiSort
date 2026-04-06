@@ -39,6 +39,11 @@ export default function PlayArea({
             <div key={op.playerId} className="flex flex-col items-center max-w-[min(100%,14rem)]">
               <div className={`${style} px-3 py-1 rounded-lg mb-2 text-xs sm:text-sm font-bold border text-center`}>
                 {op.isAI ? '🤖' : '👤'} {op.name}
+                {op.isAI && (
+                  <span className="block text-[10px] font-semibold text-emerald-200/95 mt-1 tabular-nums">
+                    남은 {cards.length}장
+                  </span>
+                )}
               </div>
               <div className="flex gap-1 flex-wrap justify-center">
                 {cards.map((c) => (

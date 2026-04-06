@@ -24,9 +24,23 @@ export function normalizeForDictionarySort(str) {
 }
 
 /**
+ * 같은 단어(정규화 기준)는 한 번만 남기고 나머지 제거 — 한 팩 안 중복 카드 방지
+ * @param {{ word: string, desc?: string }[]} entries
+ */
+export function dedupeWordEntriesByWord(entries) {
+  const seen = new Map();
+  for (const e of entries) {
+    if (!e || typeof e.word !== 'string') continue;
+    const key = normalizeForDictionarySort(e.word);
+    if (key && !seen.has(key)) seen.set(key, e);
+  }
+  return [...seen.values()];
+}
+
+/**
  * 국어사전 가나다순 (Intl.Collator — 브라우저·환경별 localeCompare 차이 완화)
  */
-const KO_DICT_COLLATOR = new Intl.Collator('ko', { sensitivity: 'variant', numeric: false });
+const KO_DICT_COLLATOR = new Intl.Collator('ko', { sensitivity: 'variant', numeric: true });
 
 export function compareKoreanDictionary(a, b) {
   return KO_DICT_COLLATOR.compare(normalizeForDictionarySort(a), normalizeForDictionarySort(b));

@@ -12,10 +12,11 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error('[unhandledrejection]', e.reason);
 });
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </StrictMode>,
+const root = createRoot(document.getElementById('root'))
+const appTree = (
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
 )
+/* 프로덕션에서 StrictMode 이중 마운트로 인한 예외·깜빡임 완화 */
+root.render(import.meta.env.DEV ? <StrictMode>{appTree}</StrictMode> : appTree)

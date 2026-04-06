@@ -1,4 +1,5 @@
 import { parsePack } from '../utils/helpers.js';
+import { grade6socialPack } from './wordsGrade6Social.js';
 
 // --- 학년별 단어 데이터베이스 팩 ---
 // 유치원 50개부터 6학년 100개까지 10개씩 증가하며 총 550개의 단어가 담겨 있습니다.
@@ -222,5 +223,6 @@ export const PACK_DATA = {
       "헌법:국가의 통치 체제와 국민의 기본권을 정한 최고의 법", "현상:우리가 눈으로 보거나 느낄 수 있는 모든 일이나 상태", "협력:힘을 합쳐 서로 돕는 것",
       "환경오염:인간의 활동으로 자연환경이 더러워지고 파괴되는 것"
     ])
-  }
+  },
+  grade6social: grade6socialPack,
 };
