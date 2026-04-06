@@ -9,6 +9,7 @@ import {
   subscribeActions,
   deleteActionDoc,
   pushPlayAction,
+  ROOM_MAX,
 } from '../lib/roomService.js';
 
 const DEFAULT_PACK_KEY = 'grade6';
@@ -72,7 +73,7 @@ export function serializeGame(s) {
  */
 function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUsedWords) {
   const totalPlayers = members.length;
-  if (totalPlayers < 2 || totalPlayers > 15) return null;
+  if (totalPlayers < 2 || totalPlayers > ROOM_MAX) return null;
 
   const cardsPerPlayer = targetLevel;
   const totalCardsNeeded = totalPlayers * cardsPerPlayer;
@@ -89,7 +90,28 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     return null;
   }
 
-  const selectedWords = pickWordsBalancedByChoseong(availableWords, totalCardsNeeded);
+  const picked = pickWordsBalancedByChoseong(availableWords, totalCardsNeeded);
+  if (picked.length < totalCardsNeeded) return null;
+
+  /* 동일 단어가 두 번 이상 나오지 않도록 보장 (온라인 동기화 시 카드 id·표시 혼선 방지) */
+  const seenW = new Set();
+  const selectedWords = [];
+  for (const w of picked) {
+    if (!w || typeof w.word !== 'string') continue;
+    if (seenW.has(w.word)) continue;
+    seenW.add(w.word);
+    selectedWords.push(w);
+  }
+  if (selectedWords.length < totalCardsNeeded) {
+    const rest = shuffleArray(
+      availableWords.filter((w) => w && typeof w.word === 'string' && !seenW.has(w.word))
+    );
+    for (const w of rest) {
+      if (selectedWords.length >= totalCardsNeeded) break;
+      seenW.add(w.word);
+      selectedWords.push(w);
+    }
+  }
   if (selectedWords.length < totalCardsNeeded) return null;
 
   if (keepUsedWords) {
@@ -112,7 +134,8 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     const rank = ranks[idx];
     const targetTime = currentLevelTime - (currentLevelTime / (totalCardsNeeded + 1)) * (rank + 1);
     return {
-      id: `${item.word}-${idx}-${targetLevel}`,
+      /* 단어·슬롯·인덱스 조합으로 전역 유일성 강화 */
+      id: `c-${targetLevel}-${idx}-${owners[idx]}-r${rank}-${item.word}`,
       word: item.word,
       desc: item.desc,
       owner: owners[idx],
@@ -205,6 +228,11 @@ export function useSilentDictionaryGame() {
     hostPlayerId: '',
   });
 
+  /** 게스트: 동일 game 스냅샷 반복 적용으로 인한 렌더·지연 루프 방지 */
+  const lastHydratedGameJsonRef = useRef('');
+  /** 호스트: Firestore에 동일 페이로드 연속 쓰기 방지 */
+  const lastNetworkWriteJsonRef = useRef('');
+
   const syncNetRef = useCallback((nr) => {
     if (!nr) {
       networkRef.current = {
@@ -214,6 +242,8 @@ export function useSilentDictionaryGame() {
         playerId: networkRef.current.playerId,
         hostPlayerId: networkRef.current.hostPlayerId,
       };
+      lastHydratedGameJsonRef.current = '';
+      lastNetworkWriteJsonRef.current = '';
       setNetRoom(null);
       return;
     }
@@ -229,6 +259,14 @@ export function useSilentDictionaryGame() {
 
   const hydrateFromGame = useCallback((g) => {
     if (!g || g.v !== 1) return;
+    let snapshotJson;
+    try {
+      snapshotJson = JSON.stringify(g);
+    } catch {
+      return;
+    }
+    if (snapshotJson === lastHydratedGameJsonRef.current) return;
+    lastHydratedGameJsonRef.current = snapshotJson;
     try {
       const safeLevel = Math.min(
         TOTAL_LEVELS,
@@ -373,6 +411,7 @@ export function useSilentDictionaryGame() {
   /** ?⑤씪???몄뒪?? 諛⑹뿉 寃뚯엫 ?쒖옉 而ㅻ컠 */
   const beginOnlineHostGame = useCallback(
     async ({ db, roomId, members, mySlot, packKey, hostPlayerId, playerId }) => {
+      lastNetworkWriteJsonRef.current = '';
       failedRoundRecoveryRef.current = false;
       aiCooldownAfterHumanUntilRef.current = 0;
       aiLastCardPlayAtRef.current = 0;
@@ -425,6 +464,7 @@ export function useSilentDictionaryGame() {
   /** ?⑤씪??寃뚯뒪?? ?ㅻ깄?룸쭔 ?섏떊 */
   const joinOnlineAsGuest = useCallback(
     ({ db, roomId, members, mySlot, playerId, hostPlayerId }) => {
+      lastHydratedGameJsonRef.current = '';
       syncNetRef({ db, roomId, isHost: false, hostPlayerId, playerId });
       setSessionMembers(members);
       setMySlotIndex(mySlot);
@@ -675,7 +715,7 @@ export function useSilentDictionaryGame() {
       if (!cardToPlay) return;
 
       const si = parseSlot(cardToPlay.owner);
-      if (si < 0 || !members[si] || !members[si].isAI) return;
+      if (si < 0 || !members[si] || members[si].isAI !== true) return;
 
       /* 마지막 한 장: targetTime과 무관하게 남은 시간(초) 안에서 랜덤 시각에 제출 */
       if (unplayedCards.length === 1) {
@@ -774,30 +814,15 @@ export function useSilentDictionaryGame() {
     });
   }, [netRoom, mySlotIndex, applyRemotePlay]);
 
-  const gameBlob = useMemo(
-    () =>
-      serializeGame({
-        gameState,
-        level,
-        lives,
-        timeLeft,
-        isPaused,
-        message,
-        usedWords,
-        hints,
-        isHintMode,
-        reviewedWords,
-        isPreparing,
-        prepTimeLeft,
-        allCards,
-        playedStack,
-        selectedPackKey,
-      }),
-    [
+  /* 호스트→Firestore: 시간을 0.5초 단위로 반올림해 쓰기 빈도·페이로드 변동을 줄임 (랙 완화) */
+  const gameBlobForNetwork = useMemo(() => {
+    const roundedTime =
+      Number.isFinite(timeLeft) && timeLeft > 0 ? Math.round(timeLeft * 2) / 2 : timeLeft;
+    return serializeGame({
       gameState,
       level,
       lives,
-      timeLeft,
+      timeLeft: roundedTime,
       isPaused,
       message,
       usedWords,
@@ -809,16 +834,41 @@ export function useSilentDictionaryGame() {
       allCards,
       playedStack,
       selectedPackKey,
-    ]
-  );
+    });
+  }, [
+    gameState,
+    level,
+    lives,
+    timeLeft,
+    isPaused,
+    message,
+    usedWords,
+    hints,
+    isHintMode,
+    reviewedWords,
+    isPreparing,
+    prepTimeLeft,
+    allCards,
+    playedStack,
+    selectedPackKey,
+  ]);
 
   useEffect(() => {
     if (!netRoom?.db || !netRoom?.roomId || !netRoom.isHost || gameState === 'home') return undefined;
     const t = setTimeout(() => {
-      updateRoomGame(netRoom.db, netRoom.roomId, netRoom.hostPlayerId, gameBlob).catch(console.error);
-    }, 400);
+      const payload = gameBlobForNetwork;
+      let j;
+      try {
+        j = JSON.stringify(payload);
+      } catch {
+        return;
+      }
+      if (j === lastNetworkWriteJsonRef.current) return;
+      lastNetworkWriteJsonRef.current = j;
+      updateRoomGame(netRoom.db, netRoom.roomId, netRoom.hostPlayerId, payload).catch(console.error);
+    }, 600);
     return () => clearTimeout(t);
-  }, [gameBlob, gameState, netRoom]);
+  }, [gameBlobForNetwork, gameState, netRoom]);
 
   const userHand = allCards
     .filter((c) => c.owner === slotOwner(mySlotIndex) && c.status === 'hand')

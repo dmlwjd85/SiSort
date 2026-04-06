@@ -6,9 +6,13 @@ import {
   createRoomDoc,
   joinRoomDoc,
   updateRoomMembers,
+  kickMemberFromRoom,
+  updatePlayerNameInRoom,
   ROOM_MIN,
   ROOM_MAX,
+  ONLINE_ROOM_MAX,
 } from '../lib/roomService.js';
+import { safeSetItem } from '../utils/safeStorage.js';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomCode.js';
 
 /**
@@ -18,6 +22,7 @@ export default function LobbyScreen({
   game,
   playerName,
   playerId,
+  setPlayerName,
   onStartPlay,
 }) {
   const {
@@ -46,16 +51,30 @@ export default function LobbyScreen({
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const guestPlayStartedRef = useRef(false);
+  const [showNameEdit, setShowNameEdit] = useState(false);
+  const [nameDraft, setNameDraft] = useState(playerName);
+
+  /** 로컬 오프라인 멤버 (1인 + AI) — useState는 이펙트보다 위에 두어 훅 순서를 맞춤 */
+  const [localMembers, setLocalMembers] = useState(() => [
+    { playerId, name: playerName, isAI: false },
+    { playerId: `ai-${Date.now()}`, name: 'AI 1', isAI: true },
+  ]);
+
+  const roomMax = mode === 'online' ? ONLINE_ROOM_MAX : ROOM_MAX;
 
   useEffect(() => {
     guestPlayStartedRef.current = false;
   }, [roomId]);
 
-  /** 로컬 오프라인 멤버 (1인 + AI) */
-  const [localMembers, setLocalMembers] = useState(() => [
-    { playerId, name: playerName, isAI: false },
-    { playerId: `ai-${Date.now()}`, name: 'AI 1', isAI: true },
-  ]);
+  useEffect(() => {
+    setNameDraft(playerName);
+  }, [playerName]);
+
+  useEffect(() => {
+    setLocalMembers((prev) =>
+      prev.map((m) => (m.playerId === playerId && !m.isAI ? { ...m, name: playerName } : m))
+    );
+  }, [playerName, playerId]);
 
   /** 온라인: 방 생성 후에는 Firestore 멤버, 그 전에는 로컬에서 인원 구성 */
   const members = useMemo(() => {
@@ -75,6 +94,21 @@ export default function LobbyScreen({
         return;
       }
       const data = { id: snap.id, ...snap.data() };
+      const list = Array.isArray(data.members) ? data.members : [];
+      if (
+        roomId &&
+        data.phase === 'lobby' &&
+        list.length > 0 &&
+        !list.some((m) => m && m.playerId === playerId)
+      ) {
+        setErr('방에서 추방되었습니다.');
+        setRoomId(null);
+        setRemoteRoom(null);
+        setIsHost(false);
+        setHostPlayerId(null);
+        guestPlayStartedRef.current = false;
+        return;
+      }
       setRemoteRoom(data);
       if (data.phase === 'playing' && !isHost && !guestPlayStartedRef.current) {
         guestPlayStartedRef.current = true;
@@ -93,10 +127,10 @@ export default function LobbyScreen({
 
   const totalCount = members.length;
   const canStart =
-    totalCount >= ROOM_MIN && totalCount <= ROOM_MAX;
+    totalCount >= ROOM_MIN && totalCount <= roomMax;
 
   const addAiOffline = () => {
-    if (localMembers.length >= ROOM_MAX) return;
+    if (localMembers.length >= roomMax) return;
     setLocalMembers((prev) => [
       ...prev,
       { playerId: `ai-${Date.now()}-${prev.length}`, name: `AI ${prev.filter((m) => m.isAI).length + 1}`, isAI: true },
@@ -113,7 +147,7 @@ export default function LobbyScreen({
 
   const addAiOnline = async () => {
     if (!onlineOk || !roomId || !isHost || !remoteRoom) return;
-    if (members.length >= ROOM_MAX) return;
+    if (members.length >= ONLINE_ROOM_MAX) return;
     const next = [
       ...members,
       { playerId: `ai-${Date.now()}`, name: `AI ${members.filter((m) => m.isAI).length + 1}`, isAI: true },
@@ -167,6 +201,10 @@ export default function LobbyScreen({
       setErr('방 코드는 영문 대문자·숫자 4자리입니다.');
       return;
     }
+    if (localMembers.length < ROOM_MIN || localMembers.length > ONLINE_ROOM_MAX) {
+      setErr(`온라인 방은 ${ROOM_MIN}~${ONLINE_ROOM_MAX}명으로 맞춰 주세요.`);
+      return;
+    }
     setBusy(true);
     setErr('');
     try {
@@ -211,6 +249,7 @@ export default function LobbyScreen({
       console.error(e);
       if (e.message === 'ROOM_NOT_FOUND') setErr('방을 찾을 수 없습니다.');
       else if (e.message === 'GAME_ALREADY_STARTED') setErr('이미 시작된 방입니다.');
+      else if (e.message === 'ROOM_FULL') setErr('방이 가득 찼습니다. (온라인 최대 4명)');
       else setErr('참가에 실패했습니다.');
     } finally {
       setBusy(false);
@@ -247,14 +286,64 @@ export default function LobbyScreen({
     }
   };
 
+  const handleKickMember = async (targetPlayerId) => {
+    if (!onlineOk || !roomId || !isHost || !hostPlayerId || targetPlayerId === playerId) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await ensureFirebaseAuth();
+      await kickMemberFromRoom(db, roomId, hostPlayerId, targetPlayerId);
+    } catch (e) {
+      setErr('추방에 실패했습니다.');
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveDisplayName = async () => {
+    const t = nameDraft.trim();
+    if (!t) {
+      setErr('이름을 입력해 주세요.');
+      return;
+    }
+    safeSetItem('sisort_name', t);
+    setPlayerName(t);
+    setLocalMembers((prev) =>
+      prev.map((m) => (m.playerId === playerId && !m.isAI ? { ...m, name: t } : m))
+    );
+    setErr('');
+    if (onlineOk && roomId) {
+      setBusy(true);
+      try {
+        await ensureFirebaseAuth();
+        await updatePlayerNameInRoom(db, roomId, playerId, t);
+      } catch (e) {
+        setErr('서버에 이름 반영에 실패했습니다. 로컬만 변경되었습니다.');
+        console.error(e);
+      } finally {
+        setBusy(false);
+      }
+    }
+    setShowNameEdit(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center p-4 text-white font-sans pb-24">
       <h1 className="text-4xl md:text-5xl font-black mt-6 mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
         침묵의 가나다
       </h1>
-      <p className="text-slate-400 text-sm mb-6 text-center">
-        {playerName}님 — 방 {ROOM_MIN}~{ROOM_MAX}명
+      <p className="text-slate-400 text-sm mb-2 text-center">
+        {playerName}님 — 방 {ROOM_MIN}~{roomMax}명
+        {mode === 'online' ? ' (온라인 최대 4명)' : ''}
       </p>
+      <button
+        type="button"
+        onClick={() => { setNameDraft(playerName); setShowNameEdit(true); }}
+        className="text-xs text-sky-400 hover:underline mb-6"
+      >
+        표시 이름 바꾸기
+      </button>
 
       <div className="flex gap-2 mb-6">
         <button
@@ -330,7 +419,7 @@ export default function LobbyScreen({
               }}
               disabled={
                 busy ||
-                totalCount >= ROOM_MAX ||
+                totalCount >= roomMax ||
                 (mode === 'online' && roomId && !isHost)
               }
               className="rounded-lg bg-green-800 px-3 py-1 text-xs font-bold"
@@ -356,13 +445,34 @@ export default function LobbyScreen({
         </div>
         <ul className="space-y-1 text-sm">
           {members.map((m, i) => (
-            <li key={`${m.playerId}-${i}`} className="flex justify-between border-b border-slate-700/80 py-1">
+            <li key={`${m.playerId}-${i}`} className="flex justify-between items-center gap-2 border-b border-slate-700/80 py-1">
               <span>{m.isAI ? '🤖' : '👤'} {m.name}</span>
-              <span className="text-slate-500">{m.playerId === playerId ? '(나)' : ''}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                {m.playerId === playerId && <span className="text-slate-500">(나)</span>}
+                {mode === 'online' &&
+                  roomId &&
+                  isHost &&
+                  !m.isAI &&
+                  m.playerId !== playerId &&
+                  m.playerId !== hostPlayerId && (
+                    <button
+                      type="button"
+                      onClick={() => void handleKickMember(m.playerId)}
+                      disabled={busy}
+                      className="rounded bg-rose-900/80 px-2 py-0.5 text-[11px] font-bold text-rose-100 disabled:opacity-40"
+                    >
+                      추방
+                    </button>
+                  )}
+              </span>
             </li>
           ))}
         </ul>
-        {!canStart && <p className="text-amber-400 text-xs mt-2">{ROOM_MIN}~{ROOM_MAX}명으로 맞춰 주세요.</p>}
+        {!canStart && (
+          <p className="text-amber-400 text-xs mt-2">
+            {ROOM_MIN}~{roomMax}명으로 맞춰 주세요.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap justify-center gap-3 mb-6">
@@ -416,6 +526,38 @@ export default function LobbyScreen({
         currentWordDB={currentWordDB}
         onClose={() => setShowWordList(false)}
       />
+
+      {showNameEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-slate-800 max-w-md w-full rounded-2xl border border-slate-600 p-6">
+            <h2 className="text-xl font-bold text-sky-300 mb-3">표시 이름</h2>
+            <p className="text-slate-400 text-xs mb-2">게임에 보이는 이름입니다. 온라인 방에 있으면 다른 참가자에게도 반영됩니다.</p>
+            <input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              maxLength={24}
+              className="w-full rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowNameEdit(false)}
+                className="flex-1 rounded-xl bg-slate-600 py-2 font-bold"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveDisplayName()}
+                disabled={busy}
+                className="flex-1 rounded-xl bg-sky-600 py-2 font-bold disabled:opacity-40"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

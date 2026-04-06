@@ -36,6 +36,7 @@ export default function App() {
         game={game}
         playerName={playerName}
         playerId={playerId}
+        setPlayerName={setPlayerName}
         onStartPlay={() => setPhase('play')}
       />
     );

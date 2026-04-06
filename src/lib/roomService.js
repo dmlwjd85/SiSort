@@ -12,7 +12,10 @@ import {
 } from 'firebase/firestore';
 
 export const ROOM_MIN = 2;
+/** 오프라인·로컬 로비에서 허용하는 최대 인원 */
 export const ROOM_MAX = 15;
+/** 온라인(Firestore) 방 최대 인원 — 성능·동기화 부담 완화 */
+export const ONLINE_ROOM_MAX = 4;
 
 /**
  * 방 생성(로비)
@@ -34,7 +37,7 @@ export async function createRoomDoc(db, roomId, { hostId, packKey, members }) {
 }
 
 /**
- * 방 참가: 멤버에 본인이 없으면 추가 (총 인원 15 이하)
+ * 방 참가: 멤버에 본인이 없으면 추가 (온라인은 ONLINE_ROOM_MAX 이하)
  */
 export async function joinRoomDoc(db, roomId, member) {
   const ref = doc(db, 'rooms', roomId);
@@ -51,7 +54,7 @@ export async function joinRoomDoc(db, roomId, member) {
     if (members.some((m) => m.playerId === member.playerId)) {
       return;
     }
-    if (members.length >= ROOM_MAX) {
+    if (members.length >= ONLINE_ROOM_MAX) {
       throw new Error('ROOM_FULL');
     }
     members.push(member);
@@ -68,9 +71,52 @@ export async function updateRoomMembers(db, roomId, members, hostId) {
     const data = snap.data();
     if (data.hostId !== hostId) throw new Error('NOT_HOST');
     if (data.phase !== 'lobby') throw new Error('NOT_LOBBY');
-    if (!Array.isArray(members) || members.length < ROOM_MIN || members.length > ROOM_MAX) {
+    if (!Array.isArray(members) || members.length < ROOM_MIN || members.length > ONLINE_ROOM_MAX) {
       throw new Error('BAD_MEMBER_COUNT');
     }
+    transaction.update(ref, { members, updatedAt: serverTimestamp() });
+  });
+}
+
+/**
+ * 로비에서 호스트가 특정 참가자 추방 (본인·호스트는 추방 불가)
+ */
+export async function kickMemberFromRoom(db, roomId, hostId, targetPlayerId) {
+  if (!targetPlayerId || targetPlayerId === hostId) {
+    throw new Error('INVALID_KICK_TARGET');
+  }
+  const ref = doc(db, 'rooms', roomId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists()) throw new Error('ROOM_NOT_FOUND');
+    const data = snap.data();
+    if (data.hostId !== hostId) throw new Error('NOT_HOST');
+    if (data.phase !== 'lobby') throw new Error('NOT_LOBBY');
+    const members = (Array.isArray(data.members) ? data.members : []).filter(
+      (m) => m && m.playerId !== targetPlayerId
+    );
+    if (members.length < ROOM_MIN) throw new Error('BAD_MEMBER_COUNT');
+    transaction.update(ref, { members, updatedAt: serverTimestamp() });
+  });
+}
+
+/**
+ * 로비에서 본인 표시 이름 변경 (Firestore 멤버 배열의 name 갱신)
+ */
+export async function updatePlayerNameInRoom(db, roomId, playerId, newName) {
+  const trimmed = typeof newName === 'string' ? newName.trim() : '';
+  if (!trimmed) throw new Error('EMPTY_NAME');
+  const ref = doc(db, 'rooms', roomId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists()) throw new Error('ROOM_NOT_FOUND');
+    const data = snap.data();
+    if (data.phase !== 'lobby') throw new Error('NOT_LOBBY');
+    const prev = Array.isArray(data.members) ? data.members : [];
+    if (!prev.some((m) => m && m.playerId === playerId)) throw new Error('NOT_IN_ROOM');
+    const members = prev.map((m) =>
+      m && m.playerId === playerId ? { ...m, name: trimmed } : m
+    );
     transaction.update(ref, { members, updatedAt: serverTimestamp() });
   });
 }
