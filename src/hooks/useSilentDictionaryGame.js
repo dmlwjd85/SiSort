@@ -1,7 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { shuffleArray, getLevelTime, assignDictionaryRanks, dedupeWordEntriesByWord } from '../utils/helpers.js';
-import { hangulChoseongIndex } from '../utils/wordPick.js';
 import {
   startRoomGame,
   updateRoomGame,
@@ -35,18 +34,6 @@ function slotOwner(i) {
 function parseSlot(owner) {
   const n = parseInt(String(owner).replace(/^s/, ''), 10);
   return Number.isNaN(n) ? -1 : n;
-}
-
-/**
- * AI가 이번에 내야 할 선두(사전 순 최우선) 카드를 쥐었을 때의 제출 지연(초).
- * 초성(ㄱ~ㅎ)에 따라 약간만 차등하고, 예전보다 훨씬 짧게 망설여 먼저 내기 쉽게 함.
- */
-function aiPlayDelayLeadCard(remainingSec, choseongIdx) {
-  const g =
-    Number.isFinite(choseongIdx) && choseongIdx >= 0 && choseongIdx <= 18 ? choseongIdx : 9;
-  const t = Math.max(0.05, remainingSec);
-  const frac = 0.05 + (0.29 * (g + 1)) / 19;
-  return Math.min(t * frac, 2.5, t * 0.42);
 }
 
 export function serializeGame(s) {
@@ -181,7 +168,7 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     timeLeft: currentLevelTime,
     usedWords: usedWordsNext,
     isPreparing: true,
-    prepTimeLeft: 15,
+    prepTimeLeft: 5,
     gameState: 'playing',
     /** 풀의 모든 단어를 한 번씩 쓴 뒤 다시 무작위로 뽑기 시작한 레벨 */
     exhaustionCycle: pickedFromFullPoolCycle,
@@ -219,7 +206,7 @@ export function useSilentDictionaryGame(options = {}) {
   const [showWordList, setShowWordList] = useState(false);
 
   const [isPreparing, setIsPreparing] = useState(false);
-  const [prepTimeLeft, setPrepTimeLeft] = useState(15);
+  const [prepTimeLeft, setPrepTimeLeft] = useState(5);
 
   const [selectedPackKey, setSelectedPackKey] = useState('kindergarten');
   const currentWordDB = PACK_DATA[selectedPackKey]?.words ?? PACK_DATA.kindergarten.words;
@@ -230,8 +217,6 @@ export function useSilentDictionaryGame(options = {}) {
   const allCardsRef = useRef([]);
   /** 실수로 판이 끝난 뒤 같은 레벨 재시작을 이미 걸었는지(중복 방지) */
   const failedRoundRecoveryRef = useRef(false);
-  /** 사람(비 AI)이 카드를 제출한 직후 AI가 최소 2초 대기 (절대 시각 ms) */
-  const aiCooldownAfterHumanUntilRef = useRef(0);
   /** 손패가 한 장만 남았을 때 AI 제출 시각(targetTime 무시, 남은 시간 내 랜덤) */
   const aiLastCardPlayAtRef = useRef(0);
   /** AI 다음 제출 벽시각(ms). 학생 패를 모른다고 가정해 전역 targetTime 대신 초성·남은 시간으로만 스케줄 */
@@ -404,7 +389,7 @@ export function useSilentDictionaryGame(options = {}) {
       setReviewedWords(Array.isArray(g.reviewedWords) ? g.reviewedWords : []);
       setIsPreparing(Boolean(g.isPreparing));
       setPrepTimeLeft(
-        Math.min(60, Math.max(0, Number.isFinite(Number(g.prepTimeLeft)) ? Math.floor(Number(g.prepTimeLeft)) : 15))
+        Math.min(60, Math.max(0, Number.isFinite(Number(g.prepTimeLeft)) ? Math.floor(Number(g.prepTimeLeft)) : 5))
       );
       setAllCards(safeCards);
       setPlayedStack(safeStack);
@@ -441,7 +426,6 @@ export function useSilentDictionaryGame(options = {}) {
     if (!bundle) return;
     failedRoundRecoveryRef.current = false;
     appliedRemoteCardIdsRef.current.clear();
-    aiCooldownAfterHumanUntilRef.current = 0;
     aiLastCardPlayAtRef.current = 0;
     aiPlayAtWallRef.current = 0;
     aiPlayScheduledCardIdRef.current = '';
@@ -519,7 +503,6 @@ export function useSilentDictionaryGame(options = {}) {
       failedRoundRecoveryRef.current = false;
       appliedRemoteCardIdsRef.current.clear();
       setGuestPlayLocked(false);
-      aiCooldownAfterHumanUntilRef.current = 0;
       aiLastCardPlayAtRef.current = 0;
       aiPlayAtWallRef.current = 0;
       aiPlayScheduledCardIdRef.current = '';
@@ -622,7 +605,6 @@ export function useSilentDictionaryGame(options = {}) {
     failedRoundRecoveryRef.current = false;
     appliedRemoteCardIdsRef.current.clear();
     setGuestPlayLocked(false);
-    aiCooldownAfterHumanUntilRef.current = 0;
     aiLastCardPlayAtRef.current = 0;
     aiPlayAtWallRef.current = 0;
     aiPlayScheduledCardIdRef.current = '';
@@ -776,11 +758,10 @@ export function useSilentDictionaryGame(options = {}) {
       if (ranks.length === 0) return;
       const lowestRank = Math.min(...ranks);
 
-      if (cardToPlay.rank === lowestRank) {
+        if (cardToPlay.rank === lowestRank) {
         const siPlay = parseSlot(cardToPlay.owner);
         const mem = sessionMembersRef.current[siPlay];
         if (mem && !mem.isAI) {
-          aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
           aiPlayScheduledCardIdRef.current = '';
           aiPlayAtWallRef.current = 0;
         }
@@ -832,7 +813,6 @@ export function useSilentDictionaryGame(options = {}) {
         appliedRemoteCardIdsRef.current.add(id);
         const m = sessionMembersRef.current[fromSlot];
         if (m && !m.isAI) {
-          aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
           aiPlayScheduledCardIdRef.current = '';
           aiPlayAtWallRef.current = 0;
         }
@@ -932,7 +912,6 @@ export function useSilentDictionaryGame(options = {}) {
         aiPlayScheduledCardIdRef.current = '';
         aiPlayAtWallRef.current = 0;
       }
-      if (Date.now() < aiCooldownAfterHumanUntilRef.current) return;
 
       const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
       if (ranks.length === 0) return;
@@ -943,30 +922,24 @@ export function useSilentDictionaryGame(options = {}) {
       const si = parseSlot(cardToPlay.owner);
       if (si < 0 || !members[si] || members[si].isAI !== true) return;
 
-      /* 마지막 한 장: 남은 시간 끝나기 전에 반드시 제출 (지연은 짧게 상한, 종료 0.1초 전까지 클램프) */
+      /* 마지막 한 장(AI): 짧은 지연만 두고 제한 시간 내 제출(사람 차례와 무관하게 순서만 따름) */
       if (unplayedCards.length === 1) {
         const remainingMs = Math.max(0, currentTime * 1000);
         const roundEndAt = Date.now() + remainingMs;
         if (aiLastCardPlayAtRef.current === 0) {
-          const maxDelay = Math.min(1200, Math.max(80, remainingMs * 0.35));
-          const jitter = Math.random() * maxDelay;
-          const planned = Date.now() + jitter;
-          aiLastCardPlayAtRef.current = Math.min(planned, Math.max(Date.now() + 40, roundEndAt - 100));
+          const jitter = 40 + Math.random() * 160;
+          aiLastCardPlayAtRef.current = Math.min(Date.now() + jitter, Math.max(Date.now() + 30, roundEndAt - 80));
         }
-        if (currentTime <= 0.18 || Date.now() >= aiLastCardPlayAtRef.current) {
+        if (currentTime <= 0.12 || Date.now() >= aiLastCardPlayAtRef.current) {
           aiLastCardPlayAtRef.current = 0;
           handlePlayCard(cardToPlay);
         }
         return;
       }
 
-      /* AI: 학생 손패를 모른다고 가정 — 전역 rank 기반 targetTime으로 연속 제출하지 않고,
-       * 이 카드 초성(ㄱ~ㅎ)과 남은 시간만으로 벽시계 지연을 잡는다.
-       * 여기까지 왔다면 AI가 쥔 카드가 이번에 가장 앞서(사전 순) 내야 할 카드이므로 lead 지연으로 과감히 먼저 내기 */
+      /* AI 다장: 사람 패를 보지 않고 «지금 사전 순 선두»만 따름 — 짧은 고정 지연으로 순차 제출 */
       if (aiPlayScheduledCardIdRef.current !== cardToPlay.id) {
-        const g = hangulChoseongIndex(cardToPlay.word?.[0] ?? '');
-        const delaySec = aiPlayDelayLeadCard(currentTime, g);
-        aiPlayAtWallRef.current = Date.now() + delaySec * 1000;
+        aiPlayAtWallRef.current = Date.now() + 60 + Math.random() * 140;
         aiPlayScheduledCardIdRef.current = cardToPlay.id;
         return;
       }
@@ -1031,7 +1004,6 @@ export function useSilentDictionaryGame(options = {}) {
         failedRoundRecoveryRef.current = false;
         appliedRemoteCardIdsRef.current.clear();
         setGuestPlayLocked(false);
-        aiCooldownAfterHumanUntilRef.current = 0;
         aiLastCardPlayAtRef.current = 0;
         aiPlayAtWallRef.current = 0;
         aiPlayScheduledCardIdRef.current = '';

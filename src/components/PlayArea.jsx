@@ -169,14 +169,13 @@ export default function PlayArea({
               <h2 className="text-xl md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
                 내 카드를 확인하고 순서를 예상하세요!
               </h2>
-              <p className="text-center text-[11px] text-slate-500 mb-4">
-                아래 손패에서 카드를 <strong className="text-amber-200">드래그</strong>해 순서를 바꿀 수 있습니다.
+              <p className="text-center text-sm text-amber-100/95 mb-2 break-keep leading-relaxed font-medium">
+                아래 손패에서 카드를 <strong className="text-amber-300">꾹 눌러</strong> 사전 순으로 정렬하거나,{' '}
+                <strong className="text-amber-300">드래그</strong>해 순서를 바꿀 수 있습니다.
               </p>
-              {prepTimeLeft === 10 && (
-                <p className="text-center text-sm font-bold text-sky-300 animate-pulse border border-sky-500/40 rounded-lg py-2 px-3 bg-sky-950/50">
-                  ⏱ 남은 시간 10초 — 손패를 사전 순에 맞게 정리하세요.
-                </p>
-              )}
+              <p className="text-center text-[11px] text-slate-500 mb-4 break-keep">
+                Long-press to sort · drag to reorder
+              </p>
             </DraggablePanel>
           </div>
 
@@ -192,19 +191,13 @@ export default function PlayArea({
             ))}
           </div>
 
-          {prepTimeLeft <= 5 && prepTimeLeft >= 1 && (
+          {prepTimeLeft >= 1 && (
             <p className="pointer-events-none text-amber-200/95 text-sm font-bold mb-1 drop-shadow-lg">
-              곧 시작합니다
+              곧 시작합니다 · {prepTimeLeft}
             </p>
           )}
-          <div
-            className={`pointer-events-none font-black drop-shadow-2xl tabular-nums ${
-              prepTimeLeft <= 5 && prepTimeLeft >= 1
-                ? 'text-8xl sm:text-9xl animate-pulse text-amber-300'
-                : 'text-7xl sm:text-8xl text-white'
-            }`}
-          >
-            {prepTimeLeft}
+          <div className="pointer-events-none font-black text-7xl sm:text-8xl text-amber-300 drop-shadow-2xl tabular-nums animate-pulse">
+            {prepTimeLeft >= 1 ? prepTimeLeft : 0}
           </div>
         </div>
       )}

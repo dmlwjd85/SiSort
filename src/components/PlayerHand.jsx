@@ -1,8 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+
+/** 살펴보기 중 꾹 눌러 한 번에 사전 순 정렬 */
+const LONG_PRESS_MS = 450;
+const MOVE_CANCEL_PX = 14;
 
 /**
  * 하단 손패: 사용자 카드 클릭으로 제출
- * 살펴보기·대기·일시정지 중에도 드래그로 순서 변경(disabled 버튼은 드래그가 막히므로 클릭만 막음)
+ * 살펴보기: 꾹 눌러 사전 순 정렬 · 드래그로 순서 변경(버튼은 disabled 없이 클릭만 차단)
  */
 export default function PlayerHand({
   userHand,
@@ -20,6 +24,57 @@ export default function PlayerHand({
   const reorderFn = reorderMyHandPrep;
   const canReorder = Boolean(canReorderHand && reorderFn && userHand.length > 1);
 
+  const longPressTimerRef = useRef(null);
+  const pointerDownRef = useRef(null);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearLongPress(), [clearLongPress]);
+
+  const sortHandByRank = useCallback(() => {
+    if (!isPreparing || !canReorder || !reorderFn || userHand.length < 2) return;
+    const sorted = [...userHand].sort((a, b) => a.rank - b.rank);
+    reorderFn(sorted.map((c) => c.id));
+  }, [isPreparing, canReorder, reorderFn, userHand]);
+
+  const onPrepPointerDown = useCallback(
+    (e) => {
+      if (!isPreparing || !canReorder || userHand.length < 2) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      pointerDownRef.current = { x: e.clientX, y: e.clientY };
+      clearLongPress();
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null;
+        pointerDownRef.current = null;
+        sortHandByRank();
+      }, LONG_PRESS_MS);
+    },
+    [isPreparing, canReorder, userHand.length, clearLongPress, sortHandByRank]
+  );
+
+  const onPrepPointerMove = useCallback(
+    (e) => {
+      if (!pointerDownRef.current || !longPressTimerRef.current) return;
+      const dx = e.clientX - pointerDownRef.current.x;
+      const dy = e.clientY - pointerDownRef.current.y;
+      if (dx * dx + dy * dy > MOVE_CANCEL_PX * MOVE_CANCEL_PX) {
+        clearLongPress();
+        pointerDownRef.current = null;
+      }
+    },
+    [clearLongPress]
+  );
+
+  const onPrepPointerEnd = useCallback(() => {
+    pointerDownRef.current = null;
+    clearLongPress();
+  }, [clearLongPress]);
+
   const applyReorder = (fromIdx, toIdx) => {
     if (!canReorder || fromIdx === toIdx) return;
     const ids = userHand.map((c) => c.id);
@@ -29,7 +84,6 @@ export default function PlayerHand({
     reorderFn(next);
   };
 
-  /** 사전 순(rank)과 화면 순이 다르면 해당 카드에 빨간 테두리 */
   const wrongOrderIds = useMemo(() => {
     if (userHand.length <= 1) return new Set();
     const rankSorted = [...userHand].sort((a, b) => a.rank - b.rank);
@@ -52,13 +106,14 @@ export default function PlayerHand({
               내 카드 (사전 순서가 가장 앞설 때 누르세요)
             </span>
             {isPreparing && (
-              <span className="text-amber-300/95 text-xs">
-                살펴보기 시간: 카드를 드래그해 순서만 바꿀 수 있습니다(버튼은 눌러도 제출되지 않습니다).
+              <span className="text-amber-300/95 text-xs break-keep leading-relaxed">
+                <strong className="text-amber-200">살펴보기:</strong> 카드를 <strong>꾹 눌러</strong> 사전 순으로 한 번에
+                정렬하거나, <strong>드래그</strong>해 순서만 바꿀 수 있습니다. (탭으로는 제출되지 않습니다)
               </span>
             )}
             {!isPreparing && canReorder && (
               <span className="text-emerald-300/95 text-xs">
-                플레이 중에도 손패가 2장 이상이면 언제든 드래그해 사전 순서에 맞출 수 있습니다.
+                손패가 2장 이상이면 드래그해 사전 순서에 맞출 수 있습니다.
               </span>
             )}
             {userHand.length > 1 && (
@@ -76,7 +131,16 @@ export default function PlayerHand({
                 key={card.id}
                 type="button"
                 draggable={canReorder}
+                style={{ touchAction: isPreparing ? 'manipulation' : undefined }}
+                onPointerDown={(e) => {
+                  onPrepPointerDown(e);
+                }}
+                onPointerMove={isPreparing ? onPrepPointerMove : undefined}
+                onPointerUp={isPreparing ? onPrepPointerEnd : undefined}
+                onPointerCancel={isPreparing ? onPrepPointerEnd : undefined}
                 onDragStart={(e) => {
+                  clearLongPress();
+                  pointerDownRef.current = null;
                   if (!canReorder) return;
                   e.dataTransfer.setData('text/plain', String(index));
                   e.dataTransfer.effectAllowed = 'move';
@@ -100,7 +164,8 @@ export default function PlayerHand({
                   handlePlayCard(card);
                 }}
                 aria-disabled={cannotPlayCard}
-                className={`w-28 h-40 sm:w-32 sm:h-44 bg-white rounded-xl shadow-lg flex flex-col items-center justify-center p-3 text-slate-800 transition-transform ${
+                title={isPreparing && canReorder && userHand.length > 1 ? '꾹 눌러 사전 순 정렬 · 드래그로 이동' : undefined}
+                className={`w-28 h-40 sm:w-32 sm:h-44 bg-white rounded-xl shadow-lg flex flex-col items-center justify-center p-3 text-slate-800 transition-transform select-none ${
                   cannotPlayCard && !canReorder ? 'opacity-60' : ''
                 } ${
                   canReorder
