@@ -1,4 +1,5 @@
 import React from 'react';
+import JokboWordListModal from './JokboWordListModal.jsx';
 
 /**
  * 홈 화면: 타이틀, 단어 팩 선택, 게임 시작, 게임 방법·족보 모달
@@ -95,32 +96,12 @@ export default function Home({
         </div>
       )}
 
-      {showWordList && (
-        <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-50 p-4 animate-fade-in-up">
-          <div className="bg-slate-800 p-6 rounded-3xl max-w-2xl w-full border-2 border-green-500 shadow-2xl flex flex-col h-[85vh]">
-            <h2 className="text-3xl font-bold text-green-400 mb-2 text-center">📚 {PACK_DATA[selectedPackKey].name} 족보</h2>
-            <p className="text-slate-400 text-center mb-4 text-sm">여기에 있는 {currentWordDB.length}개의 단어들이 게임에 출제됩니다.</p>
-            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 bg-slate-900/50 p-4 rounded-xl mb-4">
-              <ul className="space-y-2">
-                {[...currentWordDB].sort((a, b) => a.word.localeCompare(b.word, 'ko')).map((c, i) => (
-                  <li key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-slate-800 rounded-lg border border-slate-700">
-                    <span className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded min-w-[30px] text-center">{i + 1}</span>
-                    <span className="font-bold text-xl text-white min-w-[60px]">{c.word}</span>
-                    <span className="text-sm text-slate-300 break-keep">{c.desc}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowWordList(false)}
-              className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-full text-xl transition-colors shadow-lg"
-            >
-              닫기
-            </button>
-          </div>
-        </div>
-      )}
+      <JokboWordListModal
+        open={showWordList}
+        packTitle={PACK_DATA[selectedPackKey].name}
+        currentWordDB={currentWordDB}
+        onClose={() => setShowWordList(false)}
+      />
     </div>
   );
 }
