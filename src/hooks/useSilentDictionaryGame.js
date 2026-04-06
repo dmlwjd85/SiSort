@@ -606,6 +606,22 @@ export function useSilentDictionaryGame() {
     const unplayed = cards.filter((c) => c.status === 'hand');
     const hasDiscarded = cards.some((c) => c.status === 'discarded');
 
+    /* 마지막 한 장이 AI 차례인데 제한시간만 다한 경우: 랜덤 지연·타임아웃 레이스로 생명만 깎이지 않도록 즉시 제출 */
+    if (unplayed.length === 1) {
+      const ranks = unplayed.map((c) => c.rank).filter((r) => Number.isFinite(r));
+      if (ranks.length > 0) {
+        const lowestRank = Math.min(...ranks);
+        const cardToPlay = unplayed.find((c) => c.rank === lowestRank);
+        const si = cardToPlay ? parseSlot(cardToPlay.owner) : -1;
+        const members = sessionMembersRef.current;
+        if (cardToPlay && si >= 0 && members[si]?.isAI) {
+          aiLastCardPlayAtRef.current = 0;
+          handlePlayCard(cardToPlay);
+          return;
+        }
+      }
+    }
+
     /* 실수 후 손패 없음: 생명은 이미 깎였고, 타임아웃으로 또 깎이면 안 됨 → 같은 레벨 재시작 */
     if (unplayed.length === 0 && cards.length > 0) {
       if (hasDiscarded) {
@@ -636,7 +652,7 @@ export function useSilentDictionaryGame() {
       }
       return newLives;
     });
-  }, [level, startLevel, restartLevelAfterFailedRound]);
+  }, [level, startLevel, restartLevelAfterFailedRound, handlePlayCard]);
 
   const checkAiPlays = useCallback(
     (currentTime) => {
@@ -663,11 +679,12 @@ export function useSilentDictionaryGame() {
 
       /* 마지막 한 장: targetTime과 무관하게 남은 시간(초) 안에서 랜덤 시각에 제출 */
       if (unplayedCards.length === 1) {
-        if (aiLastCardPlayAtRef.current === 0) {
+        const lowTime = currentTime <= 0.25;
+        if (aiLastCardPlayAtRef.current === 0 && !lowTime) {
           const maxWaitMs = Math.max(100, currentTime * 1000);
           aiLastCardPlayAtRef.current = Date.now() + Math.random() * maxWaitMs;
         }
-        if (Date.now() >= aiLastCardPlayAtRef.current) {
+        if (lowTime || Date.now() >= aiLastCardPlayAtRef.current) {
           aiLastCardPlayAtRef.current = 0;
           handlePlayCard(cardToPlay);
         }
