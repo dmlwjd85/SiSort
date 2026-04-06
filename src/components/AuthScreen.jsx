@@ -241,26 +241,48 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
 
       {mode === 'login' && (
         <form onSubmit={handleLogin} className="w-full space-y-3">
-          <input
-            value={legalName}
-            onChange={(e) => setLegalName(e.target.value)}
-            placeholder="이름 (실명, 가입 시와 동일)"
-            maxLength={24}
-            autoComplete="name"
-            className={inputBase}
-            required
-          />
-          <input
-            inputMode="numeric"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="비밀번호 4자리 (숫자)"
-            maxLength={4}
-            className={`${inputBase} tracking-widest`}
-            required
-          />
+          <div className="rounded-xl border border-sky-500/35 bg-sky-950/30 px-3 py-2.5 mb-1">
+            <p className="text-[12px] text-sky-100/95 text-center break-keep leading-relaxed">
+              <strong className="text-amber-200">위 칸</strong>에 이름(실명), <strong className="text-amber-200">아래 칸</strong>에 숫자 비밀번호 4자리를 넣으면 로그인됩니다.
+            </p>
+            <p className="text-[11px] text-slate-500 text-center mt-1.5 break-keep">
+              Put your name in the first field and your 4-digit PIN in the second — then you&apos;re logged in.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="sisort-auth-name" className="block text-xs font-bold text-amber-200/90 mb-1.5">
+              이름 (실명)
+            </label>
+            <input
+              id="sisort-auth-name"
+              name="legalName"
+              value={legalName}
+              onChange={(e) => setLegalName(e.target.value)}
+              placeholder="가입 시와 동일한 이름"
+              maxLength={24}
+              autoComplete="name"
+              className={inputBase}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="sisort-auth-password" className="block text-xs font-bold text-amber-200/90 mb-1.5">
+              비밀번호 (숫자 4자리)
+            </label>
+            <input
+              id="sisort-auth-password"
+              inputMode="numeric"
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="0000"
+              maxLength={4}
+              className={`${inputBase} tracking-widest`}
+              required
+            />
+          </div>
           <button
             type="submit"
             disabled={busy}
@@ -273,37 +295,66 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
 
       {mode === 'register' && (
         <form onSubmit={handleRegister} className="w-full space-y-3">
-          <input
-            value={legalName}
-            onChange={(e) => setLegalName(e.target.value)}
-            placeholder="이름 (실명, 2~24자)"
-            maxLength={24}
-            autoComplete="name"
-            className={inputBase}
-            required
-          />
-          <input
-            inputMode="numeric"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="비밀번호 4자리 (숫자)"
-            maxLength={4}
-            className={`${inputBase} tracking-widest`}
-            required
-          />
-          <input
-            inputMode="numeric"
-            type="password"
-            autoComplete="new-password"
-            value={password2}
-            onChange={(e) => setPassword2(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="비밀번호 확인 (4자리)"
-            maxLength={4}
-            className={`${inputBase} tracking-widest`}
-            required
-          />
+          <div className="rounded-xl border border-emerald-500/35 bg-emerald-950/25 px-3 py-2.5 mb-1">
+            <p className="text-[12px] text-emerald-100/95 text-center break-keep leading-relaxed">
+              위에서 아래 순서로 맞게 입력하면 가입이 완료됩니다. 비밀번호는 숫자 4자리만 사용합니다.
+            </p>
+            <p className="text-[11px] text-slate-500 text-center mt-1.5 break-keep">
+              Fill each field in order — name, then PIN twice. Only digits for the password.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="sisort-reg-name" className="block text-xs font-bold text-amber-200/90 mb-1.5">
+              이름 (실명, 2~24자)
+            </label>
+            <input
+              id="sisort-reg-name"
+              name="legalName"
+              value={legalName}
+              onChange={(e) => setLegalName(e.target.value)}
+              placeholder="실명 입력"
+              maxLength={24}
+              autoComplete="name"
+              className={inputBase}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="sisort-reg-password" className="block text-xs font-bold text-amber-200/90 mb-1.5">
+              비밀번호 (숫자 4자리)
+            </label>
+            <input
+              id="sisort-reg-password"
+              inputMode="numeric"
+              type="password"
+              name="new-password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="0000"
+              maxLength={4}
+              className={`${inputBase} tracking-widest`}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="sisort-reg-password2" className="block text-xs font-bold text-amber-200/90 mb-1.5">
+              비밀번호 확인
+            </label>
+            <input
+              id="sisort-reg-password2"
+              inputMode="numeric"
+              type="password"
+              name="new-password-confirm"
+              autoComplete="new-password"
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="한 번 더 입력"
+              maxLength={4}
+              className={`${inputBase} tracking-widest`}
+              required
+            />
+          </div>
           <button
             type="submit"
             disabled={busy}
