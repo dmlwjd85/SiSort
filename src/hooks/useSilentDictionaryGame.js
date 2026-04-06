@@ -34,16 +34,15 @@ function parseSlot(owner) {
 }
 
 /**
- * AI는 학생 손패를 모른다고 가정하고, 전역 targetTime 대신
- * 이 카드의 첫 글자 초성(ㄱ~ㅎ, 0~18)만으로 남은 시간 구간 안에서 지연(초)을 둔다.
+ * AI가 이번에 내야 할 선두(사전 순 최우선) 카드를 쥐었을 때의 제출 지연(초).
+ * 초성(ㄱ~ㅎ)에 따라 약간만 차등하고, 예전보다 훨씬 짧게 망설여 먼저 내기 쉽게 함.
  */
-function aiPlayDelayFromChoseong(remainingSec, choseongIdx) {
+function aiPlayDelayLeadCard(remainingSec, choseongIdx) {
   const g =
     Number.isFinite(choseongIdx) && choseongIdx >= 0 && choseongIdx <= 18 ? choseongIdx : 9;
   const t = Math.max(0.05, remainingSec);
-  /* ㄱ에 가까울수록 짧게, ㅎ에 가까울수록 길게 — 남은 시간에 선형 비례 */
-  const frac = 0.08 + (0.84 * (g + 1)) / 19;
-  return t * frac;
+  const frac = 0.05 + (0.29 * (g + 1)) / 19;
+  return Math.min(t * frac, 2.5, t * 0.42);
 }
 
 export function serializeGame(s) {
@@ -735,10 +734,11 @@ export function useSilentDictionaryGame() {
       }
 
       /* AI: 학생 손패를 모른다고 가정 — 전역 rank 기반 targetTime으로 연속 제출하지 않고,
-       * 이 카드 초성(ㄱ~ㅎ)과 남은 시간만으로 벽시계 지연을 잡는다. */
+       * 이 카드 초성(ㄱ~ㅎ)과 남은 시간만으로 벽시계 지연을 잡는다.
+       * 여기까지 왔다면 AI가 쥔 카드가 이번에 가장 앞서(사전 순) 내야 할 카드이므로 lead 지연으로 과감히 먼저 내기 */
       if (aiPlayScheduledCardIdRef.current !== cardToPlay.id) {
         const g = hangulChoseongIndex(cardToPlay.word?.[0] ?? '');
-        const delaySec = aiPlayDelayFromChoseong(currentTime, g);
+        const delaySec = aiPlayDelayLeadCard(currentTime, g);
         aiPlayAtWallRef.current = Date.now() + delaySec * 1000;
         aiPlayScheduledCardIdRef.current = cardToPlay.id;
         return;
