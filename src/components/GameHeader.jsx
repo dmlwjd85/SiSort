@@ -18,6 +18,13 @@ export default function GameHeader({
   getLevelTime,
   onLeaveLobby,
 }) {
+  /* Firestore 동기화 값이 비정상일 때 repeat 등에서 예외가 나지 않도록 상한 적용 */
+  const safeLives = Math.max(0, Math.min(3, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
+  const emptyHearts = Math.max(0, 3 - safeLives);
+  const maxTime = getLevelTime(Math.max(1, Number(level) || 1));
+  const barPct =
+    maxTime > 0 ? Math.min(100, (Math.max(0, Number(timeLeft) || 0) / maxTime) * 100) : 0;
+
   return (
     <div className="bg-slate-800 p-4 shadow-md z-10">
       <div className="max-w-5xl mx-auto flex flex-wrap justify-between items-center gap-2">
@@ -59,7 +66,7 @@ export default function GameHeader({
             🔍 길라잡이: {hints}개
           </button>
           <div className="text-xl sm:text-2xl tracking-widest text-red-500 drop-shadow-md">
-            {'♥'.repeat(lives)}{'♡'.repeat(3 - lives)}
+            {'♥'.repeat(safeLives)}{'♡'.repeat(emptyHearts)}
           </div>
         </div>
       </div>
@@ -72,7 +79,7 @@ export default function GameHeader({
         <div className="w-full bg-slate-700 h-3 rounded-full overflow-hidden">
           <div
             className={`h-full transition-all duration-100 ease-linear ${timeLeft <= 5 ? 'bg-red-500' : 'bg-green-400'}`}
-            style={{ width: `${(Math.max(0, timeLeft) / getLevelTime(level)) * 100}%` }}
+            style={{ width: `${barPct}%` }}
           />
         </div>
       </div>

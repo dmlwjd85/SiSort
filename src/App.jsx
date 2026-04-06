@@ -4,12 +4,13 @@ import LobbyScreen from './components/LobbyScreen.jsx';
 import PlayScreen from './components/PlayScreen.jsx';
 import { useSilentDictionaryGame } from './hooks/useSilentDictionaryGame.js';
 import { getOrCreatePlayerId } from './lib/playerId.js';
+import { safeGetItem } from './utils/safeStorage.js';
 
 /**
  * 최상위: 이름 → 로비 → 플레이
  */
 export default function App() {
-  const [playerName, setPlayerName] = useState(() => localStorage.getItem('sisort_name') || '');
+  const [playerName, setPlayerName] = useState(() => safeGetItem('sisort_name', ''));
   const [phase, setPhase] = useState('lobby');
   const game = useSilentDictionaryGame();
   const playerId = getOrCreatePlayerId();

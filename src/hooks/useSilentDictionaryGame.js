@@ -1,5 +1,13 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
+
+const DEFAULT_PACK_KEY = 'grade6';
+
+function resolvePack(packKey) {
+  const p = PACK_DATA[packKey];
+  if (p?.words?.length) return { key: packKey, pack: p };
+  return { key: DEFAULT_PACK_KEY, pack: PACK_DATA[DEFAULT_PACK_KEY] };
+}
 import { shuffleArray, getLevelTime } from '../utils/helpers.js';
 import { pickWordsBalancedByChoseong } from '../utils/wordPick.js';
 import {
@@ -55,7 +63,11 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
 
   const cardsPerPlayer = targetLevel;
   const totalCardsNeeded = totalPlayers * cardsPerPlayer;
-  const wordPool = PACK_DATA[packKey].words;
+  const { pack } = resolvePack(packKey);
+  const wordPool = (pack.words || []).filter(
+    (w) => w && typeof w.word === 'string' && w.word.length > 0
+  );
+  if (wordPool.length < totalCardsNeeded) return null;
 
   let availableWords = wordPool.filter((w) => !(keepUsedWords && usedWordsBefore.includes(w.word)));
   let usedWordsNext = [...usedWordsBefore];
@@ -65,6 +77,7 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
   }
 
   const selectedWords = pickWordsBalancedByChoseong(availableWords, totalCardsNeeded);
+  if (selectedWords.length < totalCardsNeeded) return null;
 
   if (keepUsedWords) {
     usedWordsNext = [...usedWordsBefore, ...selectedWords.map((w) => w.word)];
@@ -178,21 +191,73 @@ export function useSilentDictionaryGame() {
 
   const hydrateFromGame = useCallback((g) => {
     if (!g || g.v !== 1) return;
-    setGameState(g.gameState);
-    setLevel(g.level);
-    setLives(g.lives);
-    setTimeLeft(g.timeLeft);
-    setIsPaused(g.isPaused);
-    setMessage(g.message ?? '');
-    setUsedWords(g.usedWords ?? []);
-    setHints(g.hints ?? 2);
-    setIsHintMode(g.isHintMode ?? false);
-    setReviewedWords(g.reviewedWords ?? []);
-    setIsPreparing(g.isPreparing ?? false);
-    setPrepTimeLeft(g.prepTimeLeft ?? 5);
-    setAllCards(g.allCards ?? []);
-    setPlayedStack(g.playedStack ?? []);
-    if (g.selectedPackKey) setSelectedPackKey(g.selectedPackKey);
+    try {
+      const safeLevel = Math.min(
+        TOTAL_LEVELS,
+        Math.max(1, Number.isFinite(Number(g.level)) ? Math.floor(Number(g.level)) : 1)
+      );
+      const safeLives = Math.min(
+        99,
+        Math.max(0, Number.isFinite(Number(g.lives)) ? Math.floor(Number(g.lives)) : 3)
+      );
+      const safeTime = Number.isFinite(Number(g.timeLeft)) ? Number(g.timeLeft) : 20;
+
+      const rawCards = Array.isArray(g.allCards) ? g.allCards : [];
+      const safeCards = rawCards.map((c, i) => {
+        if (!c || typeof c !== 'object') return null;
+        const status = c.status === 'played' || c.status === 'discarded' ? c.status : 'hand';
+        return {
+          id: String(c.id ?? `card-${i}`),
+          word: typeof c.word === 'string' ? c.word : '?',
+          desc: typeof c.desc === 'string' ? c.desc : '',
+          owner: typeof c.owner === 'string' ? c.owner : 's0',
+          rank: Number.isFinite(Number(c.rank)) ? Number(c.rank) : i,
+          targetTime: Number.isFinite(Number(c.targetTime)) ? Number(c.targetTime) : 0,
+          status,
+          revealed: Boolean(c.revealed),
+        };
+      }).filter(Boolean);
+
+      const rawStack = Array.isArray(g.playedStack) ? g.playedStack : [];
+      const safeStack = rawStack
+        .map((c, i) => {
+          if (!c || typeof c !== 'object') return null;
+          return {
+            id: String(c.id ?? `p-${i}`),
+            word: typeof c.word === 'string' ? c.word : '?',
+            desc: typeof c.desc === 'string' ? c.desc : '',
+            owner: typeof c.owner === 'string' ? c.owner : 's0',
+            rank: Number.isFinite(Number(c.rank)) ? Number(c.rank) : i,
+            targetTime: Number.isFinite(Number(c.targetTime)) ? Number(c.targetTime) : 0,
+            status: 'played',
+            revealed: Boolean(c.revealed),
+          };
+        })
+        .filter(Boolean);
+
+      const pk =
+        g.selectedPackKey && PACK_DATA[g.selectedPackKey] ? g.selectedPackKey : DEFAULT_PACK_KEY;
+
+      setGameState(typeof g.gameState === 'string' ? g.gameState : 'playing');
+      setLevel(safeLevel);
+      setLives(safeLives);
+      setTimeLeft(safeTime);
+      setIsPaused(Boolean(g.isPaused));
+      setMessage(typeof g.message === 'string' ? g.message : '');
+      setUsedWords(Array.isArray(g.usedWords) ? g.usedWords : []);
+      setHints(Math.min(99, Math.max(0, Number.isFinite(Number(g.hints)) ? Math.floor(Number(g.hints)) : 2)));
+      setIsHintMode(Boolean(g.isHintMode));
+      setReviewedWords(Array.isArray(g.reviewedWords) ? g.reviewedWords : []);
+      setIsPreparing(Boolean(g.isPreparing));
+      setPrepTimeLeft(
+        Math.min(60, Math.max(0, Number.isFinite(Number(g.prepTimeLeft)) ? Math.floor(Number(g.prepTimeLeft)) : 5))
+      );
+      setAllCards(safeCards);
+      setPlayedStack(safeStack);
+      setSelectedPackKey(pk);
+    } catch (e) {
+      console.error('[hydrateFromGame]', e);
+    }
   }, []);
 
   const applyLevelBundle = useCallback((bundle) => {
@@ -377,7 +442,9 @@ export function useSilentDictionaryGame() {
       const unplayedCards = allCards.filter((c) => c.status === 'hand');
       if (unplayedCards.length === 0) return;
 
-      const lowestRank = Math.min(...unplayedCards.map((c) => c.rank));
+      const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
+      if (ranks.length === 0) return;
+      const lowestRank = Math.min(...ranks);
 
       if (cardToPlay.rank === lowestRank) {
         setAllCards((prev) => prev.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c)));
@@ -404,7 +471,9 @@ export function useSilentDictionaryGame() {
         const unplayedCards = prevCards.filter((c) => c.status === 'hand');
         if (unplayedCards.length === 0) return prevCards;
 
-        const lowestRank = Math.min(...unplayedCards.map((c) => c.rank));
+        const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
+        if (ranks.length === 0) return prevCards;
+        const lowestRank = Math.min(...ranks);
 
         if (cardToPlay.rank === lowestRank) {
           const next = prevCards.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c));
@@ -430,7 +499,9 @@ export function useSilentDictionaryGame() {
       if (newLives <= 0) {
         setGameState('game_over');
       } else {
-        setMessage(`시간 초과! 시간이 지났습니다.\n(생명력 -1, 레벨 다시 시작)`);
+        setMessage(
+          `시간 초과로 생명력이 1 줄었습니다.\n\n【이유】사전 순서상 이번에 가장 먼저 내야 할 카드를 제한 시간이 끝나기 전에 아무도 내지 못했습니다. 차례를 놓치면 레벨을 완주할 수 없습니다.\n\n(이 레벨을 처음부터 다시 시작합니다)`
+        );
         setTimeout(() => {
           startLevel(level, false);
         }, 3000);
@@ -445,7 +516,9 @@ export function useSilentDictionaryGame() {
       const unplayedCards = allCards.filter((c) => c.status === 'hand');
       if (unplayedCards.length === 0) return;
 
-      const lowestRank = Math.min(...unplayedCards.map((c) => c.rank));
+      const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
+      if (ranks.length === 0) return;
+      const lowestRank = Math.min(...ranks);
       const cardToPlay = unplayedCards.find((c) => c.rank === lowestRank);
       if (!cardToPlay) return;
 
@@ -498,8 +571,12 @@ export function useSilentDictionaryGame() {
     if (!netRoom?.db || !netRoom?.roomId || netRoom.isHost) return undefined;
     return subscribeRoom(netRoom.db, netRoom.roomId, (room) => {
       if (!room || room.phase !== 'playing' || !room.game) return;
-      if (Array.isArray(room.members)) setSessionMembers(room.members);
-      hydrateFromGame(room.game);
+      try {
+        if (Array.isArray(room.members)) setSessionMembers(room.members);
+        hydrateFromGame(room.game);
+      } catch (e) {
+        console.error('[subscribeRoom]', e);
+      }
     });
   }, [netRoom, hydrateFromGame]);
 

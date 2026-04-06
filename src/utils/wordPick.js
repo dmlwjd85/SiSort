@@ -13,7 +13,10 @@ export function hangulChoseongIndex(char) {
  * @param {{ word: string, desc: string }[]} wordEntries
  */
 export function pickWordsBalancedByChoseong(wordEntries, count) {
-  const pool = [...wordEntries];
+  const pool = wordEntries.filter(
+    (w) => w && typeof w.word === 'string' && w.word.length > 0
+  );
+  if (pool.length === 0) return [];
   if (pool.length <= count) return shuffleArray(pool);
 
   const buckets = Array.from({ length: 19 }, () => []);

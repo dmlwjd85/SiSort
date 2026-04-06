@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
+import { safeGetItem, safeSetItem } from '../utils/safeStorage.js';
 
 /**
  * 최초 접속 시 표시 이름 입력
  */
 export default function NameGate({ onSave }) {
-  const [name, setName] = useState(() => localStorage.getItem('sisort_name') || '');
+  const [name, setName] = useState(() => safeGetItem('sisort_name', ''));
 
   const submit = (e) => {
     e.preventDefault();
     const t = name.trim();
     if (t.length < 1 || t.length > 12) return;
-    localStorage.setItem('sisort_name', t);
+    safeSetItem('sisort_name', t);
     onSave(t);
   };
 
