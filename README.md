@@ -18,11 +18,11 @@ Vite + React 앱입니다.
 
 ## GitHub Pages 배포
 
-저장소 이름이 **`sisort`** 이고 사용자가 **`dmlwjd85`** 인 경우, 배포 URL은 다음과 같습니다.
+GitHub 저장소 **`dmlwjd85/SiSort`** 기준 배포 URL은 다음과 같습니다 (대소문자는 GitHub 표기에 맞춤).
 
-`https://dmlwjd85.github.io/sisort/`
+`https://dmlwjd85.github.io/SiSort/`
 
-1. GitHub에서 저장소 `dmlwjd85/sisort` 를 만듭니다 (또는 이미 있다면 원격만 연결).
+1. GitHub에서 저장소 `dmlwjd85/SiSort` 가 있습니다 (원격은 아래와 같이 연결).
 2. 이 `sisort` 폴더를 저장소 루트로 푸시합니다.
 3. 저장소 **Settings → Pages → Build and deployment** 에서 **GitHub Actions** 를 소스로 선택합니다.
 4. `main` 또는 `master` 에 푸시하면 `.github/workflows/deploy-pages.yml` 이 빌드·배포합니다.
@@ -30,7 +30,7 @@ Vite + React 앱입니다.
 ## 원격 저장소 연결 예시
 
 ```bash
-git remote add origin https://github.com/dmlwjd85/sisort.git
+git remote add origin https://github.com/dmlwjd85/SiSort.git
 git branch -M main
 git push -u origin main
 ```

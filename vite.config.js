@@ -3,9 +3,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// GitHub Pages: https://dmlwjd85.github.io/sisort/ (저장소 이름이 sisort일 때)
-// CI에서만 base를 /sisort/로 두고, 로컬 개발은 '/' 유지
-const base = process.env.GITHUB_ACTIONS === 'true' ? '/sisort/' : '/'
+// GitHub Pages: 저장소 github.com/dmlwjd85/SiSort → 보통 /SiSort/ (저장소 표기와 동일)
+// CI에서만 base를 설정하고, 로컬 개발은 '/' 유지
+const base = process.env.GITHUB_ACTIONS === 'true' ? '/SiSort/' : '/'
 
 // https://vite.dev/config/
 export default defineConfig({

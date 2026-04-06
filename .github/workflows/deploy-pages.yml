@@ -1,4 +1,4 @@
-# GitHub Pages에 sisort 앱 배포 (저장소: dmlwjd85/sisort)
+# GitHub Pages에 Sisort 앱 배포 (저장소: dmlwjd85/SiSort)
 name: Deploy GitHub Pages
 
 on:
