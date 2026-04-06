@@ -19,7 +19,7 @@ function resolvePack(packKey) {
   return { key: DEFAULT_PACK_KEY, pack: PACK_DATA[DEFAULT_PACK_KEY] };
 }
 
-const TOTAL_LEVELS = 10;
+const TOTAL_LEVELS = 15;
 
 export { TOTAL_LEVELS };
 
@@ -324,18 +324,19 @@ export function useSilentDictionaryGame() {
       const members = membersArg ?? sessionMembersRef.current;
       const uw = usedWordsOverride !== undefined ? usedWordsOverride : usedWords;
       let bundle = buildLevelBundle(targetLevel, members, selectedPackKey, uw, keepUsedWords);
-      let poolExhausted = false;
+      /* 미사용 단어가 모자라면 같은 레벨을 전체 풀을 다시 섞어 이어감(레벨 1로 되돌리지 않음) */
+      let reshuffledFromExhaustion = false;
+      if (!bundle && keepUsedWords) {
+        reshuffledFromExhaustion = true;
+        bundle = buildLevelBundle(targetLevel, members, selectedPackKey, [], false);
+      }
       if (!bundle) {
-        poolExhausted = true;
-        bundle = buildLevelBundle(1, members, selectedPackKey, [], false);
-        if (!bundle) {
-          setMessage('단어를 구성할 수 없습니다. 참가 인원(2~15명)과 난이도를 확인해 주세요.');
-          return;
-        }
+        setMessage('단어를 구성할 수 없습니다. 참가 인원(2~15명)과 난이도를 확인해 주세요.');
+        return;
       }
       applyLevelBundle(bundle);
-      if (poolExhausted) {
-        setMessage('남은 단어가 부족합니다. 처음부터 다시 섞어 시작합니다.');
+      if (reshuffledFromExhaustion) {
+        setMessage('단어를 모두 써서 다시 섞어 이어갑니다.');
       }
     },
     [selectedPackKey, usedWords, applyLevelBundle]
