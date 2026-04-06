@@ -20,21 +20,34 @@ export default function JokboWordListModal({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
-  const sorted = [...currentWordDB].sort((a, b) =>
-    a.word.localeCompare(b.word, 'ko')
+  const words = Array.isArray(currentWordDB) ? currentWordDB : [];
+  const sorted = [...words].sort((a, b) =>
+    String(a.word).localeCompare(String(b.word), 'ko')
   );
 
   /* animate-fade-in-up 은 translate(-50%)라 flex 중앙 정렬 레이아웃을 깨뜨림 → fade-in만 사용 */
   const overlay = (
     <div
-      className="pointer-events-none fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-slate-900/70 p-4 sm:p-6 animate-fade-in"
+      className="fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-slate-900/70 p-4 sm:p-6 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="jokbo-wordlist-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="pointer-events-auto mx-auto flex w-full max-w-2xl justify-center">
+      <div className="pointer-events-auto mx-auto flex w-full max-w-2xl justify-center" onClick={(e) => e.stopPropagation()}>
         <DraggablePanel className="flex max-h-[min(85dvh,40rem)] min-w-0 w-full max-w-2xl flex-col rounded-3xl border-2 border-green-500 bg-slate-800 shadow-2xl">
           <div className="flex flex-col overflow-hidden p-4 sm:p-6">
         <h2
@@ -44,7 +57,7 @@ export default function JokboWordListModal({
           📚 {packTitle} 족보
         </h2>
         <p className="mb-4 text-center text-sm text-slate-400">
-          여기에 있는 {currentWordDB.length}개의 단어들이 게임에 출제됩니다.
+          여기에 있는 {words.length}개의 단어들이 게임에 출제됩니다.
         </p>
         <div className="scrollbar-thin scrollbar-thumb-slate-600 mb-4 min-h-0 flex-1 overflow-y-auto rounded-xl bg-slate-900/50 p-4">
           <ul className="space-y-2">

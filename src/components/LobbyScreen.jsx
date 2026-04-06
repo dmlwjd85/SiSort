@@ -939,7 +939,7 @@ export default function LobbyScreen({
 
       <JokboWordListModal
         open={showWordList}
-        packTitle={PACK_DATA[selectedPackKey].name}
+        packTitle={PACK_DATA[selectedPackKey]?.name ?? '단어'}
         currentWordDB={currentWordDB}
         onClose={() => setShowWordList(false)}
       />

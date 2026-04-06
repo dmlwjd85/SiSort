@@ -16,6 +16,7 @@ export default function ResultModal({
   startLevel,
   setGameState,
   onGoLobby,
+  gameOverExplain = null,
 }) {
   const [quizCard, setQuizCard] = useState(null);
   /** 복습 준비(10초) — 끝나거나 버튼으로 바로 시작 */
@@ -66,19 +67,30 @@ export default function ResultModal({
     <div className="pointer-events-none fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-y-auto bg-slate-900/80 p-4 backdrop-blur-sm">
       {gameState === 'level_clear' && !reviewPrepDone && (
         <div className="pointer-events-auto fixed inset-0 z-[105] flex items-center justify-center bg-slate-950/92 p-4 backdrop-blur-sm">
-          <DraggablePanel className="w-full max-w-md rounded-2xl border border-amber-600/50 bg-slate-900/95 p-6 shadow-2xl text-center">
-            <h3 className="text-lg font-bold text-amber-200 mb-2 break-keep">복습 전 생각할 시간</h3>
-            <p className="text-sm text-slate-400 mb-4 break-keep">
+          <DraggablePanel className="w-full max-w-md rounded-2xl border border-amber-600/50 bg-slate-900/95 p-4 md:p-6 shadow-2xl text-center">
+            <h3 className="text-base md:text-lg font-bold text-amber-200 mb-2 break-keep">
+              <span className="md:hidden">복습 전</span>
+              <span className="hidden md:inline">복습 전 생각할 시간</span>
+            </h3>
+            <div className="md:hidden flex flex-wrap items-center justify-center gap-2 mb-3 text-[11px] text-slate-300">
+              <span className="rounded-lg bg-amber-500/15 text-amber-200 px-2 py-0.5 border border-amber-500/30 font-mono">
+                Lv.{level}
+              </span>
+              <span className="text-slate-500">·</span>
+              <span className="rounded-lg bg-slate-700 px-2 py-0.5">무작위 {reviewOrder.length}개</span>
+            </div>
+            <p className="hidden md:block text-sm text-slate-400 mb-4 break-keep">
               이번 레벨 단어를 떠올려 보세요. 레벨 {level}에서는 무작위로 {reviewOrder.length}개만 복습합니다. 아래를 누르면
               바로 복습 화면으로 넘어갑니다.
             </p>
-            <div className="text-6xl font-black text-white tabular-nums mb-6">{reviewPrepLeft}</div>
+            <div className="text-5xl md:text-6xl font-black text-white tabular-nums mb-4 md:mb-6">{reviewPrepLeft}</div>
             <button
               type="button"
               onClick={() => setReviewPrepDone(true)}
-              className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-3.5 font-bold text-lg text-white shadow-lg"
+              className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-3 md:py-3.5 font-bold text-base md:text-lg text-white shadow-lg"
             >
-              준비 완료 · 바로 시작
+              <span className="md:hidden">▶ 복습으로</span>
+              <span className="hidden md:inline">준비 완료 · 바로 시작</span>
             </button>
           </DraggablePanel>
         </div>
@@ -187,6 +199,24 @@ export default function ResultModal({
           <DraggablePanel className="max-w-md rounded-2xl border border-slate-600 bg-slate-900/95 p-8 text-center shadow-2xl">
             <div className="text-6xl mb-6">💀</div>
             <h2 className="text-4xl font-black text-red-500 mb-4">게임 오버</h2>
+            {gameOverExplain?.kind === 'wrong_order' && (
+              <p className="text-sm text-amber-100 mb-4 break-keep leading-relaxed">
+                순서 오류: <strong className="text-white">{gameOverExplain.playedWord}</strong>을(를) 냈을 때, 그보다
+                앞서 사전 순으로 내야 할 카드가 있었습니다.
+                {Array.isArray(gameOverExplain.missedWords) && gameOverExplain.missedWords.length > 0 ? (
+                  <>
+                    {' '}
+                    먼저 나와야 할 단어:{' '}
+                    <strong className="text-amber-200">{gameOverExplain.missedWords.join(' · ')}</strong>
+                  </>
+                ) : null}
+              </p>
+            )}
+            {gameOverExplain?.kind === 'timeout' && (
+              <p className="text-sm text-slate-300 mb-4 break-keep">
+                시간 안에 이번에 가장 먼저 제출해야 할 카드가 나오지 않아 생명이 깎였습니다.
+              </p>
+            )}
             <p className="text-slate-300 mb-8">생명력을 모두 잃었습니다. (도달 레벨: {level})</p>
             <button
               type="button"

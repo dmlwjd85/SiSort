@@ -25,6 +25,15 @@ export default function MyStatsModal({ open, onClose, uid }) {
     );
   }, [open, uid, db]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const ps = data?.playStats;
@@ -32,8 +41,15 @@ export default function MyStatsModal({ open, onClose, uid }) {
   const packKeys = PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[190] flex items-center justify-center bg-black/50 p-4">
-      <div className="pointer-events-auto max-h-[90vh] w-full max-w-lg overflow-hidden">
+    <div
+      className="fixed inset-0 z-[190] flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="max-h-[90vh] w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <DraggablePanel className="rounded-2xl border border-sky-600/50 bg-slate-800 shadow-2xl">
           <div className="max-h-[85vh] overflow-y-auto p-5">
             <h2 className="mb-3 text-center text-xl font-black text-sky-300">내 플레이 기록</h2>

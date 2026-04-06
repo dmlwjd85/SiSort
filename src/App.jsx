@@ -230,6 +230,23 @@ export default function App() {
     setPhase('lobby');
   };
 
+  /* 로비 복귀 시 포털·모달 상태가 남아 전체가 어둡게 막히는 것 방지(내 기록·관리자 열린 채 플레이 진입 등) */
+  useEffect(() => {
+    if (phase !== 'lobby') return;
+    setStatsOpen(false);
+    setAdminOpen(false);
+    try {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    } catch {
+      /* ignore */
+    }
+    game.setShowRules(false);
+    game.setShowWordList(false);
+    /* game 객체는 매 렌더 새 참조 → deps에 넣지 않음 */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   if (authUser === undefined && isFirebaseConfigured()) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans">
@@ -279,7 +296,13 @@ export default function App() {
           playerName={playerName}
           playerId={playerId}
           setPlayerName={setPlayerName}
-          onStartPlay={() => setPhase('play')}
+          onStartPlay={() => {
+            setStatsOpen(false);
+            setAdminOpen(false);
+            game.setShowRules(false);
+            game.setShowWordList(false);
+            setPhase('play');
+          }}
           isGuest={isGuestUi}
           authUid={authUser?.uid ?? null}
           packProgress={packProgress}

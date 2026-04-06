@@ -42,6 +42,10 @@ export default function PlayScreen(props) {
     mySlotIndex,
     onLeaveLobby,
     timeLeft,
+    tableReviewSecondsLeft,
+    gameOverExplain,
+    pendingAfterTableReview,
+    finishTableReview,
   } = props;
 
   return (
@@ -61,6 +65,46 @@ export default function PlayScreen(props) {
         timeLeft={timeLeft}
         isPreparing={isPreparing}
       />
+
+      {gameState === 'table_review' && (
+        <div className="shrink-0 z-[85] border-b border-amber-600/50 bg-slate-950/95 px-3 py-3 text-center shadow-lg md:px-4">
+          <p className="text-[13px] font-bold text-amber-200 break-keep md:text-base">
+            {pendingAfterTableReview === 'level_clear'
+              ? '제출된 카드·순서를 확인한 뒤 복습으로 넘어갑니다.'
+              : '어떤 순서가 틀렸는지 확인한 뒤 결과로 넘어갑니다.'}
+          </p>
+          {gameOverExplain?.kind === 'wrong_order' && (
+            <p className="mt-2 text-[12px] text-slate-200 break-keep md:text-sm">
+              잘못 제출: <strong className="text-white">{gameOverExplain.playedWord}</strong>
+              {Array.isArray(gameOverExplain.missedWords) && gameOverExplain.missedWords.length > 0 ? (
+                <>
+                  {' '}
+                  — 먼저 내야 할 단어:{' '}
+                  <strong className="text-amber-100">{gameOverExplain.missedWords.join(' · ')}</strong>
+                </>
+              ) : null}
+            </p>
+          )}
+          {gameOverExplain?.kind === 'timeout' && (
+            <p className="mt-2 text-[12px] text-slate-300 break-keep md:text-sm">
+              제한 시간 안에 사전 순서대로 가장 먼저 내야 할 카드가 나오지 않았습니다.
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+            <span className="font-mono text-2xl font-black tabular-nums text-white md:text-3xl">
+              {tableReviewSecondsLeft}
+            </span>
+            <span className="text-xs text-slate-400">초 후 자동 진행</span>
+            <button
+              type="button"
+              onClick={() => finishTableReview()}
+              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-500"
+            >
+              바로 넘어가기
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-1 lg:flex-row lg:min-h-0 min-w-0">
         {/* 모바일: 첫 화면에서 게임 테이블이 손패에 가려지지 않도록 플레이 영역 최소 높이 확보 — 손패는 아래로 스크롤 */}
@@ -116,6 +160,7 @@ export default function PlayScreen(props) {
         startLevel={startLevel}
         setGameState={setGameState}
         onGoLobby={onLeaveLobby}
+        gameOverExplain={gameOverExplain}
       />
     </div>
   );

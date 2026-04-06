@@ -132,6 +132,10 @@ export function serializeGame(s) {
     handDisplayOrder: s.handDisplayOrder ?? {},
     /** 길라잡이를 켠 사람 표시명(온라인 동기화) */
     hintActorName: s.hintActorName ?? '',
+    /** 테이블 확인 단계(온라인: 호스트 타이머 기준 동기화) */
+    tableReviewSecondsLeft: s.tableReviewSecondsLeft ?? 0,
+    pendingAfterTableReview: s.pendingAfterTableReview ?? null,
+    gameOverExplain: s.gameOverExplain ?? null,
   };
 }
 
@@ -264,6 +268,14 @@ export function useSilentDictionaryGame(options = {}) {
     onLevelClearedRef.current = onLevelCleared;
   }, [onLevelCleared]);
   const [gameState, setGameState] = useState('home');
+  /** 레벨 클리어·게임 오버 직전: 제출된 카드를 보며 복습 준비(초) */
+  const [tableReviewSecondsLeft, setTableReviewSecondsLeft] = useState(0);
+  /** table_review 종료 후 이어질 상태 */
+  const [pendingAfterTableReview, setPendingAfterTableReview] = useState(null);
+  /** 게임 오버 모달용 — 순서 오류·타임아웃 설명 */
+  const [gameOverExplain, setGameOverExplain] = useState(null);
+  const gameStateRef = useRef(gameState);
+  const pendingAfterTableReviewRef = useRef(null);
   const [level, setLevel] = useState(1);
   const [lives, setLives] = useState(3);
   const [timeLeft, setTimeLeft] = useState(20.0);
@@ -396,6 +408,50 @@ export function useSilentDictionaryGame(options = {}) {
     setNetRoom(nr);
   }, []);
 
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    pendingAfterTableReviewRef.current = pendingAfterTableReview;
+  }, [pendingAfterTableReview]);
+
+  const scheduleAfterTableReview = useCallback((next, explain = null) => {
+    pendingAfterTableReviewRef.current = next;
+    setPendingAfterTableReview(next);
+    setGameOverExplain(explain);
+    setTableReviewSecondsLeft(next === 'game_over' ? 18 : 15);
+    setIsPaused(true);
+    setGameState('table_review');
+  }, []);
+
+  const finishTableReview = useCallback(() => {
+    const next = pendingAfterTableReviewRef.current;
+    pendingAfterTableReviewRef.current = null;
+    setPendingAfterTableReview(null);
+    setTableReviewSecondsLeft(0);
+    if (!next) return;
+    if (next === 'level_clear') {
+      setGameOverExplain(null);
+      setGameState('level_clear');
+    } else {
+      setGameState('game_over');
+    }
+  }, []);
+
+  /** 테이블 확인 카운트다운 — 온라인 참가자는 호스트 스냅샷만 따름 */
+  useEffect(() => {
+    if (gameState !== 'table_review') return undefined;
+    const net = networkRef.current;
+    if (net.db && net.roomId && !net.isHost) return undefined;
+    if (tableReviewSecondsLeft <= 0) {
+      finishTableReview();
+      return undefined;
+    }
+    const t = setTimeout(() => setTableReviewSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [gameState, tableReviewSecondsLeft, finishTableReview]);
+
   const hydrateFromGame = useCallback((g) => {
     if (!g || g.v !== 1) return;
     let snapshotJson;
@@ -479,6 +535,21 @@ export function useSilentDictionaryGame(options = {}) {
       setPlayedStack(safeStack);
       setSelectedPackKey(pk);
 
+      const tr = Number.isFinite(Number(g.tableReviewSecondsLeft))
+        ? Math.min(120, Math.max(0, Math.floor(Number(g.tableReviewSecondsLeft))))
+        : 0;
+      setTableReviewSecondsLeft(tr);
+      const pend = g.pendingAfterTableReview;
+      if (pend === 'level_clear' || pend === 'game_over') {
+        pendingAfterTableReviewRef.current = pend;
+        setPendingAfterTableReview(pend);
+      } else {
+        pendingAfterTableReviewRef.current = null;
+        setPendingAfterTableReview(null);
+      }
+      const ex = g.gameOverExplain;
+      setGameOverExplain(ex && typeof ex === 'object' ? ex : null);
+
       const rawHo = g.handDisplayOrder;
       if (rawHo && typeof rawHo === 'object' && !Array.isArray(rawHo)) {
         const ho = {};
@@ -526,6 +597,10 @@ export function useSilentDictionaryGame(options = {}) {
     setIsPreparing(bundle.isPreparing);
     setPrepTimeLeft(bundle.prepTimeLeft);
     setGameState(bundle.gameState);
+    setTableReviewSecondsLeft(0);
+    setPendingAfterTableReview(null);
+    pendingAfterTableReviewRef.current = null;
+    setGameOverExplain(null);
     setIsPaused(false);
     setIsHintMode(false);
     setHintActorName('');
@@ -579,11 +654,11 @@ export function useSilentDictionaryGame(options = {}) {
     if (livesRef.current > 0) {
       failedRoundRecoveryRef.current = true;
       setIsPaused(true);
-      setGameState('level_clear');
+      scheduleAfterTableReview('level_clear');
       return;
     }
     restartLevelAfterFailedRound();
-  }, [allCards, gameState, isPreparing, restartLevelAfterFailedRound]);
+  }, [allCards, gameState, isPreparing, restartLevelAfterFailedRound, scheduleAfterTableReview]);
 
   /** ?⑤씪???몄뒪?? 諛⑹뿉 寃뚯엫 ?쒖옉 而ㅻ컠 */
   const beginOnlineHostGame = useCallback(
@@ -623,6 +698,10 @@ export function useSilentDictionaryGame(options = {}) {
       setHintActorName('');
       setReviewedWords([]);
       setMessage('');
+      setTableReviewSecondsLeft(0);
+      setPendingAfterTableReview(null);
+      pendingAfterTableReviewRef.current = null;
+      setGameOverExplain(null);
 
       const snapshot = serializeGame({
         gameState: 'playing',
@@ -642,6 +721,9 @@ export function useSilentDictionaryGame(options = {}) {
         playedStack: bundle.playedStack,
         selectedPackKey: packKey,
         handDisplayOrder: bundle.handDisplayOrder ?? {},
+        tableReviewSecondsLeft: 0,
+        pendingAfterTableReview: null,
+        gameOverExplain: null,
       });
       await startRoomGame(db, roomId, hostPlayerId, snapshot);
     },
@@ -709,6 +791,10 @@ export function useSilentDictionaryGame(options = {}) {
     roundTotalCardsRef.current = 0;
     syncNetRef(null);
     setGameState('home');
+    setTableReviewSecondsLeft(0);
+    setPendingAfterTableReview(null);
+    pendingAfterTableReviewRef.current = null;
+    setGameOverExplain(null);
     setSessionMembers([]);
     setAllCards([]);
     setPlayedStack([]);
@@ -816,7 +902,12 @@ export function useSilentDictionaryGame(options = {}) {
     setLives((prevLives) => {
       const newLives = prevLives - penalty;
       if (newLives <= 0) {
-        setGameState('game_over');
+        const explain = {
+          kind: 'wrong_order',
+          playedWord: wrongCard.word,
+          missedWords: sortedDisc.map((c) => c.word),
+        };
+        scheduleAfterTableReview('game_over', explain);
       } else {
         setMessage(
           `앗! 순서가 맞지 않습니다.\n앞서 내야 할 카드 ${toDiscard.length}장 — 생명력 -${penalty}`
@@ -833,7 +924,7 @@ export function useSilentDictionaryGame(options = {}) {
       }
       return newLives;
     });
-  }, []);
+  }, [scheduleAfterTableReview]);
 
   const handlePlayCard = useCallback(
     (cardToPlay) => {
@@ -883,13 +974,23 @@ export function useSilentDictionaryGame(options = {}) {
         if (unplayedCards.length === 1) {
           setIsPaused(true);
           if (level % 3 === 0) setHints((h) => h + 1);
-          setGameState('level_clear');
+          scheduleAfterTableReview('level_clear');
         }
       } else {
         handleMistake(cardToPlay);
       }
     },
-    [gameState, isPaused, isPreparing, allCards, level, mySlotIndex, handleMistake, guestPlayLocked]
+    [
+      gameState,
+      isPaused,
+      isPreparing,
+      allCards,
+      level,
+      mySlotIndex,
+      handleMistake,
+      guestPlayLocked,
+      scheduleAfterTableReview,
+    ]
   );
 
   /**
@@ -897,6 +998,7 @@ export function useSilentDictionaryGame(options = {}) {
    */
   const applyRemotePlay = useCallback(
     (cardId, fromSlot) => {
+      if (gameStateRef.current !== 'playing') return;
       const id = String(cardId);
       if (appliedRemoteCardIdsRef.current.has(id)) return;
 
@@ -937,7 +1039,7 @@ export function useSilentDictionaryGame(options = {}) {
         if (unplayedCards.length === 1) {
           setIsPaused(true);
           if (level % 3 === 0) setHints((h) => h + 1);
-          setGameState('level_clear');
+          scheduleAfterTableReview('level_clear');
         }
         return;
       }
@@ -947,7 +1049,7 @@ export function useSilentDictionaryGame(options = {}) {
       appliedRemoteCardIdsRef.current.add(id);
       handleMistake(cardToPlay);
     },
-    [level, handleMistake]
+    [level, handleMistake, scheduleAfterTableReview]
   );
 
   const handleTimeout = useCallback(() => {
@@ -978,14 +1080,16 @@ export function useSilentDictionaryGame(options = {}) {
         if (livesRef.current > 0) {
           failedRoundRecoveryRef.current = true;
           setIsPaused(true);
-          setGameState('level_clear');
+          scheduleAfterTableReview('level_clear');
         } else {
           restartLevelAfterFailedRound();
         }
         return;
       }
       setIsPaused(true);
-      setGameState((g) => (g === 'playing' ? 'level_clear' : g));
+      if (gameStateRef.current === 'playing') {
+        scheduleAfterTableReview('level_clear');
+      }
       return;
     }
 
@@ -993,7 +1097,7 @@ export function useSilentDictionaryGame(options = {}) {
     setLives((prev) => {
       const newLives = prev - 1;
       if (newLives <= 0) {
-        setGameState('game_over');
+        scheduleAfterTableReview('game_over', { kind: 'timeout' });
       } else {
         setMessage(
           `시간 초과로 생명력이 1 줄었습니다.\n\n【이유】사전 순서상 이번에 가장 먼저 내야 할 카드를 제한 시간이 끝나기 전에 아무도 내지 못했습니다. 차례를 놓치면 레벨을 완주할 수 없습니다.\n\n(이 레벨을 처음부터 다시 시작합니다)`
@@ -1005,7 +1109,7 @@ export function useSilentDictionaryGame(options = {}) {
       }
       return newLives;
     });
-  }, [level, startLevel, restartLevelAfterFailedRound, handlePlayCard]);
+  }, [level, startLevel, restartLevelAfterFailedRound, handlePlayCard, scheduleAfterTableReview]);
 
   const checkAiPlays = useCallback(
     (currentTime) => {
@@ -1315,6 +1419,9 @@ export function useSilentDictionaryGame(options = {}) {
       playedStack,
       selectedPackKey,
       handDisplayOrder,
+      tableReviewSecondsLeft,
+      pendingAfterTableReview,
+      gameOverExplain,
     });
   }, [
     gameState,
@@ -1334,6 +1441,9 @@ export function useSilentDictionaryGame(options = {}) {
     playedStack,
     selectedPackKey,
     handDisplayOrder,
+    tableReviewSecondsLeft,
+    pendingAfterTableReview,
+    gameOverExplain,
   ]);
 
   useEffect(() => {
@@ -1447,5 +1557,9 @@ export function useSilentDictionaryGame(options = {}) {
     lastPlayed,
     sortedPlayedStack,
     netRoom,
+    tableReviewSecondsLeft,
+    gameOverExplain,
+    pendingAfterTableReview,
+    finishTableReview,
   };
 }
