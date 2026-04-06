@@ -55,7 +55,7 @@ export default function AdminPanel({ open, onClose }) {
               <table className="min-w-full text-left text-sm text-slate-200 border-collapse">
                 <thead>
                   <tr className="border-b border-slate-600 text-slate-400">
-                    <th className="py-2 pr-3">표시(@앞)</th>
+                    <th className="py-2 pr-3">실명</th>
                     <th className="py-2 pr-3">생년월일</th>
                     <th className="py-2 pr-3">이메일</th>
                     <th className="py-2 pr-3 whitespace-nowrap">인정 클리어</th>

@@ -19,7 +19,7 @@ const ACCESS_LOG_MAX = 30;
 /**
  * 회원 문서 최초 생성(회원가입 직후)
  * @param {string} uid
- * @param {{ email: string, birthDate: string, displayName: string }} p — displayName은 보통 이메일 @ 앞(표시용)
+ * @param {{ email: string, birthDate: string, displayName: string }} p — displayName은 가입 시 이름(실명)
  */
 export async function createUserProfile(uid, { email, birthDate, displayName }) {
   const db = getFirestoreDb();
