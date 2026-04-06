@@ -47,30 +47,33 @@ export default function PlayArea({
     gameState === 'level_clear' ? 'max-md:hidden' : '';
   return (
     <div
-      className={`flex-1 min-h-0 relative flex flex-col items-center justify-start p-3 sm:p-4 overflow-y-auto overscroll-contain ${hideAllDuringMobileReview}`}
+      className={`relative flex flex-col items-center justify-start p-2 sm:p-4 lg:flex-1 lg:min-h-0 lg:overflow-y-auto overscroll-contain pb-4 max-lg:pb-6 ${hideAllDuringMobileReview}`}
     >
-      <div className="w-full max-w-[min(100%,80rem)] flex flex-wrap justify-center gap-4 sm:gap-8 lg:gap-10 mt-2 lg:mt-3">
+      <div className="w-full max-w-[min(100%,80rem)] flex flex-wrap justify-center gap-3 sm:gap-8 lg:gap-10 mt-1 sm:mt-2 lg:mt-3">
         {opponentSlots.map((op, i) => {
           const cards = cardsBySlot(op.slotIndex);
           const style = OPPONENT_STYLES[i % OPPONENT_STYLES.length];
           return (
-            <div key={op.playerId} className="flex flex-col items-center max-w-[min(100%,14rem)]">
-              <div className={`${style} px-3 py-1 rounded-lg mb-2 text-xs sm:text-sm font-bold border text-center`}>
+            <div key={op.playerId} className="flex flex-col items-center max-w-[min(100%,13rem)]">
+              <div
+                className={`${style} px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg mb-1.5 text-[11px] sm:text-sm font-bold border text-center max-w-[11rem] truncate`}
+                title={op.name}
+              >
                 {op.isAI ? '🤖' : '👤'} {op.name}
                 {op.isAI && (
-                  <span className="block text-[10px] font-semibold text-emerald-200/95 mt-1 tabular-nums">
-                    남은 {cards.length}장
+                  <span className="block text-[9px] sm:text-[10px] font-semibold text-emerald-200/95 mt-0.5 tabular-nums">
+                    {cards.length}장
                   </span>
                 )}
               </div>
-              <div className="flex gap-1 flex-wrap justify-center">
+              <div className="flex gap-0.5 sm:gap-1 flex-wrap justify-center">
                 {cards.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => handleRevealAICard(c.id)}
                     disabled={!isHintMode || c.revealed}
-                    className={`w-10 h-14 sm:w-12 sm:h-16 rounded shadow-sm flex flex-col items-center justify-center transition-transform ${
+                    className={`w-9 h-[3.25rem] sm:w-12 sm:h-16 rounded-md sm:rounded shadow-sm flex flex-col items-center justify-center transition-transform ${
                       c.revealed
                         ? 'bg-white border-2 border-yellow-400 scale-110 z-10'
                         : isHintMode
@@ -92,46 +95,64 @@ export default function PlayArea({
         })}
       </div>
 
-      <div className="w-56 h-72 border-4 border-dashed border-slate-600 rounded-3xl flex flex-col items-center justify-center relative bg-slate-800/50 shadow-inner mt-8">
+      <div className="w-[min(100%,18rem)] min-h-[13.5rem] sm:min-h-0 sm:h-72 sm:w-56 border-2 sm:border-4 border-dashed border-slate-600/90 rounded-2xl sm:rounded-3xl flex flex-col bg-slate-800/40 shadow-inner mt-4 sm:mt-8 p-1 sm:p-0">
         {lastPlayed ? (
           <div
-            className={`absolute inset-0 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-4 text-center animate-bounce-short border-4 ${
-              parseSlot(lastPlayed.owner) === mySlotIndex ? 'border-blue-400' : 'border-purple-400'
+            className={`flex flex-1 flex-col min-h-0 bg-white rounded-xl sm:rounded-2xl shadow-xl text-center animate-bounce-short border-2 sm:border-4 ${
+              parseSlot(lastPlayed.owner) === mySlotIndex ? 'border-sky-400' : 'border-violet-400'
             } ${correctFx ? 'animate-correct-play' : ''}`}
           >
-            <span className="text-4xl sm:text-5xl font-black text-slate-800 mb-2">{lastPlayed.word}</span>
-            <span className="text-xs sm:text-sm text-slate-600 font-medium break-keep">{lastPlayed.desc}</span>
-            <span className="absolute bottom-3 text-[10px] sm:text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-              {getOwnerLabel(lastPlayed.owner)}
-            </span>
+            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 min-h-0 p-2 sm:p-4 pt-3 sm:pt-4">
+              <span className="text-2xl sm:text-5xl font-black text-slate-800 leading-tight break-words max-w-full px-0.5">
+                {lastPlayed.word}
+              </span>
+              <div className="w-full flex-1 min-h-[2.5rem] max-h-[min(40vh,9rem)] sm:max-h-none overflow-y-auto overscroll-contain px-0.5">
+                <span className="text-[11px] sm:text-sm text-slate-600 font-medium break-keep block">
+                  {lastPlayed.desc}
+                </span>
+              </div>
+            </div>
+            <div className="shrink-0 border-t border-slate-200/90 bg-slate-50/95 px-2 py-1.5 sm:py-2 rounded-b-lg sm:rounded-b-xl">
+              <span className="text-[9px] sm:text-xs font-bold text-slate-500">{getOwnerLabel(lastPlayed.owner)}</span>
+            </div>
           </div>
         ) : (
-          <span className="text-slate-500 font-medium text-center px-4 text-sm">
-            가장 먼저 올 단어를<br />눈치껏 내세요!
-          </span>
+          <div className="flex flex-1 flex-col items-center justify-center px-2 py-4">
+            <span className="md:hidden text-slate-400 text-center text-[11px] font-bold leading-tight">
+              <span className="text-sky-400">↓</span> 가나다 <span className="text-amber-300">앞장</span>
+            </span>
+            <span className="hidden md:inline text-slate-500 font-medium text-center text-sm leading-snug">
+              가장 먼저 올 단어를 눈치껏 내세요
+            </span>
+          </div>
         )}
       </div>
 
-      <div className="w-full max-w-4xl mt-8 bg-slate-800/80 rounded-xl p-4 border border-slate-700">
-        <h3 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2">
-          <span>📜 완성되어 가는 사전</span>
-          <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">
-            {sortedPlayedStack.length} / {allCards.length}
+      <div className="w-full max-w-4xl mt-4 sm:mt-8 bg-slate-800/60 sm:bg-slate-800/80 rounded-xl p-2 sm:p-4 border border-slate-700/80">
+        <h3 className="text-xs sm:text-sm font-bold text-slate-400 mb-2 flex items-center justify-between gap-2">
+          <span className="truncate">사전 진행</span>
+          <span className="shrink-0 bg-slate-700/90 px-2 py-0.5 rounded-full text-[11px] sm:text-xs tabular-nums text-slate-200">
+            {sortedPlayedStack.length}/{allCards.length}
           </span>
         </h3>
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-600">
+        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 -mx-0.5 px-0.5 scrollbar-thin scrollbar-thumb-slate-600">
           {sortedPlayedStack.map((card) => (
             <div
               key={card.id}
-              className="min-w-[100px] bg-slate-700 rounded-lg p-2 flex flex-col justify-between shrink-0 border border-slate-600"
+              className="min-w-[4.5rem] sm:min-w-[100px] bg-slate-700/90 rounded-lg p-1.5 sm:p-2 flex flex-col justify-between shrink-0 border border-slate-600/80"
             >
-              <div className="text-lg font-bold text-white text-center border-b border-slate-600 pb-1 mb-1">{card.word}</div>
-              <div className="text-[10px] text-slate-300 text-center leading-tight line-clamp-2">{card.desc}</div>
-              <div className="text-[9px] text-slate-500 text-center mt-1">순서: {card.rank + 1}</div>
+              <div className="text-sm sm:text-lg font-bold text-white text-center border-b border-slate-600/80 pb-0.5 mb-0.5 leading-tight">
+                {card.word}
+              </div>
+              <div className="hidden sm:block text-[10px] text-slate-300 text-center leading-tight line-clamp-2">{card.desc}</div>
+              <div className="text-[8px] sm:text-[9px] text-slate-500 text-center mt-0.5 sm:mt-1 tabular-nums">#{card.rank + 1}</div>
             </div>
           ))}
           {sortedPlayedStack.length === 0 && (
-            <div className="text-slate-500 text-sm italic py-2">아직 제출된 단어가 없습니다.</div>
+            <div className="text-slate-500 py-1.5 w-full text-center md:italic text-[10px] md:text-sm">
+              <span className="md:hidden">↑ 제출 순서</span>
+              <span className="hidden md:inline">제출된 단어가 여기 쌓입니다</span>
+            </div>
           )}
         </div>
       </div>
@@ -152,11 +173,17 @@ export default function PlayArea({
       )}
 
       {isHintMode && hintActorName && (
-        <div className="pointer-events-none fixed inset-0 z-[56] flex items-start justify-center pt-20 p-2">
-          <div className="pointer-events-auto">
-            <DraggablePanel className="rounded-xl border border-amber-400 bg-amber-950/95 px-4 py-3 shadow-xl">
-              <p className="text-center text-sm font-bold text-amber-100">
-                🔍 <strong>{hintActorName}</strong>님이 길라잡이를 사용 중입니다.
+        <div className="pointer-events-none fixed inset-0 z-[56] flex items-start justify-center pt-16 md:pt-20 p-2">
+          <div className="pointer-events-auto max-w-[min(100%,20rem)] md:max-w-none">
+            <DraggablePanel className="rounded-xl border border-amber-400 bg-amber-950/95 px-3 py-2 md:px-4 md:py-3 shadow-xl">
+              <p className="text-center text-[11px] md:text-sm font-bold text-amber-100 leading-tight">
+                <span className="md:hidden">
+                  🔍 엿보기 <span className="text-amber-200">→</span>{' '}
+                  <span className="truncate inline-block max-w-[10rem] align-bottom">{hintActorName}</span>
+                </span>
+                <span className="hidden md:inline">
+                  🔍 <strong>{hintActorName}</strong>님이 길라잡이를 사용 중입니다.
+                </span>
               </p>
             </DraggablePanel>
           </div>
@@ -166,24 +193,37 @@ export default function PlayArea({
       {isPreparing && (
         <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-xl p-3">
           <div className="max-w-xl w-full px-1 pointer-events-auto">
-            <DraggablePanel className="rounded-xl border border-yellow-600/40 bg-slate-900/95 p-4 shadow-xl">
-              <h2 className="text-lg md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
+            <DraggablePanel className="rounded-xl border border-yellow-600/40 bg-slate-900/95 p-3 md:p-4 shadow-xl">
+              <h2 className="md:hidden text-base font-black text-amber-300 mb-2 text-center">살펴보기</h2>
+              <div className="md:hidden flex flex-wrap justify-center gap-1.5 mb-3 text-[10px]">
+                <span className="rounded-full bg-amber-500/20 text-amber-100 px-2 py-1 border border-amber-500/35">
+                  👆→가나다
+                </span>
+                <span className="rounded-full bg-amber-500/20 text-amber-100 px-2 py-1 border border-amber-500/35">
+                  ↔순서
+                </span>
+                <span className="rounded-full bg-slate-700 text-slate-300 px-2 py-1 border border-slate-600">
+                  탭✕제출
+                </span>
+              </div>
+              <h2 className="hidden md:block text-xl md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
                 내 카드를 확인하고 순서를 예상하세요!
               </h2>
-              <p className="text-center text-sm text-amber-100/95 mb-2 break-keep leading-relaxed font-medium">
+              <p className="hidden md:block text-center text-sm text-amber-100/95 mb-2 break-keep leading-relaxed font-medium">
                 아래 손패에서 카드를 <strong className="text-amber-300">꾹 눌러</strong> 사전 순으로 정렬하거나,{' '}
                 <strong className="text-amber-300">드래그</strong>해 순서를 바꿀 수 있습니다.
               </p>
-              <p className="text-center text-[11px] text-slate-500 mb-3 break-keep">
+              <p className="hidden md:block text-center text-[11px] text-slate-500 mb-3 break-keep">
                 Long-press to sort · drag to reorder
               </p>
               {typeof onSkipPrep === 'function' && (
                 <button
                   type="button"
                   onClick={onSkipPrep}
-                  className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-3 font-bold text-base text-white shadow-lg"
+                  className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-2.5 md:py-3 font-bold text-sm md:text-base text-white shadow-lg"
                 >
-                  준비 완료 · 바로 시작
+                  <span className="md:hidden">▶ 바로 시작</span>
+                  <span className="hidden md:inline">준비 완료 · 바로 시작</span>
                 </button>
               )}
             </DraggablePanel>
@@ -202,8 +242,9 @@ export default function PlayArea({
           </div>
 
           {prepTimeLeft >= 1 && (
-            <p className="text-amber-200/95 text-sm font-bold mb-1 drop-shadow-lg">
-              자동 시작까지 · {prepTimeLeft}초
+            <p className="text-amber-200/95 text-xs md:text-sm font-bold mb-1 drop-shadow-lg tabular-nums">
+              <span className="md:hidden">⏱ {prepTimeLeft}s</span>
+              <span className="hidden md:inline">자동 시작까지 · {prepTimeLeft}초</span>
             </p>
           )}
           <div className="font-black text-6xl sm:text-7xl md:text-8xl text-amber-300 drop-shadow-2xl tabular-nums animate-pulse">
