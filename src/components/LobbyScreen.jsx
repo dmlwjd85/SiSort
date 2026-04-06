@@ -926,7 +926,7 @@ export default function LobbyScreen({
                   <li>모든 플레이어는 카드를 받고, 가나다순으로 내야 합니다.</li>
                   <li>AI는 자동으로 타이밍에 맞춰 냅니다.</li>
                   <li>온라인에서는 호스트가 타이머·AI를 맞춥니다.</li>
-                  <li>살펴보기·대기 중에는 손패를 드래그해 순서를 맞출 수 있습니다. 사전 순과 다르면 빨간 테두리로 표시됩니다.</li>
+                  <li>살펴보기·대기 중에는 [가나다 한번에 정렬] 버튼 또는 드래그로 순서를 맞출 수 있습니다. 사전 순과 다르면 빨간 테두리로 표시됩니다.</li>
                 </ul>
                 <button type="button" onClick={() => setShowRules(false)} className="mt-6 w-full rounded-xl bg-blue-600 py-3 font-bold">
                   닫기

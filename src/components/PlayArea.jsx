@@ -190,10 +190,16 @@ export default function PlayArea({
         <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-xl p-3">
           <div className="max-w-xl w-full px-1 pointer-events-auto">
             <DraggablePanel className="rounded-xl border border-yellow-600/40 bg-slate-900/95 p-3 md:p-4 shadow-xl">
-              <h2 className="md:hidden text-base font-black text-amber-300 mb-2 text-center">살펴보기</h2>
+              <h2 className="md:hidden text-base font-black text-amber-300 mb-1 text-center">살펴보기</h2>
+              <p className="md:hidden text-center text-[12px] font-bold text-amber-100/95 leading-snug break-keep px-0.5 mb-2">
+                다른 플레이어와 힘을 합쳐 순서를 완성해보세요!!
+              </p>
+              <p className="md:hidden text-center text-[10px] text-slate-400 leading-snug break-keep px-0.5 mb-3">
+                생명력은 팀이 함께 씁니다. 가상 플레이어가 순서를 틀려도 팀 생명이 줄 수 있어요 — 서로 맞춰 가면 돼요.
+              </p>
               <div className="md:hidden flex flex-wrap justify-center gap-1.5 mb-3 text-[10px]">
                 <span className="rounded-full bg-amber-500/20 text-amber-100 px-2 py-1 border border-amber-500/35">
-                  👆→가나다
+                  정렬하기
                 </span>
                 <span className="rounded-full bg-amber-500/20 text-amber-100 px-2 py-1 border border-amber-500/35">
                   ↔순서
@@ -203,14 +209,14 @@ export default function PlayArea({
                 </span>
               </div>
               <h2 className="hidden md:block text-xl md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
-                내 카드를 확인하고 순서를 예상하세요!
+                다른 플레이어와 힘을 합쳐 순서를 완성해보세요!!
               </h2>
               <p className="hidden md:block text-center text-sm text-amber-100/95 mb-2 break-keep leading-relaxed font-medium">
-                아래 손패에서 카드를 <strong className="text-amber-300">꾹 눌러</strong> 사전 순으로 정렬하거나,{' '}
+                아래 손패에서 <strong className="text-amber-300">가나다 한번에 정렬</strong> 버튼으로 맞추거나,{' '}
                 <strong className="text-amber-300">드래그</strong>해 순서를 바꿀 수 있습니다.
               </p>
-              <p className="hidden md:block text-center text-[11px] text-slate-500 mb-3 break-keep">
-                Long-press to sort · drag to reorder
+              <p className="hidden md:block text-center text-[11px] text-slate-400 mb-3 break-keep leading-relaxed">
+                생명력은 팀이 함께 씁니다. 가상 플레이어가 순서를 틀려도 팀 생명이 줄 수 있어요.
               </p>
               {typeof onSkipPrep === 'function' && (
                 <button

@@ -56,12 +56,12 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose, 
                 type="button"
                 disabled={phase !== 'pick'}
                 onClick={() => handlePick(ch)}
-                className={`text-left rounded-xl px-4 py-3 text-sm sm:text-base font-medium border-2 transition-colors break-keep outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800 ${
+                className={`text-left rounded-xl px-4 py-3 text-sm sm:text-base font-medium border-2 transition-colors break-keep outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800 touch-manipulation [-webkit-tap-highlight-color:transparent] ${
                   showOk
                     ? 'border-emerald-500 bg-emerald-900/40 text-emerald-100'
                     : showBad
                       ? 'border-red-500 bg-red-900/30 text-red-100'
-                      : 'border-slate-600 bg-slate-700/80 text-slate-100 hover:bg-slate-600/90 hover:border-slate-500'
+                      : 'border-slate-600 bg-slate-700/80 text-slate-100 active:bg-slate-600/85 [@media(hover:hover)]:hover:bg-slate-600/90 [@media(hover:hover)]:hover:border-slate-500'
                 }`}
               >
                 {ch.text}
