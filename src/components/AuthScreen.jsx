@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { isFirebaseConfigured } from '../lib/firebase.js';
 import { registerWithEmail, loginWithEmail } from '../lib/authService.js';
 import { createUserProfile, recordUserAccess } from '../lib/userProfileService.js';
+import { buildAccountEmail, pinToFirebasePassword } from '../lib/accountIdentity.js';
 import { safeSetItem } from '../utils/safeStorage.js';
 
 const GUEST_KEY = 'sisort_guest';
@@ -18,18 +19,12 @@ function isValidBirthDate8(s) {
   return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 }
 
-function emailLocalPart(emailStr) {
-  const s = String(emailStr || '').trim();
-  const i = s.indexOf('@');
-  return i > 0 ? s.slice(0, i).slice(0, 40) : '사용자';
-}
-
 /**
- * 메인 로그인: 회원가입(생년월일 8자리·이메일·비밀번호) / 로그인 / 게스트(유치원+6학년사회 팩)
+ * 메인 로그인: 회원가입(표시 이름·생년월일·비밀번호 4자리) / 동일 조합 로그인 / 게스트
  */
 export default function AuthScreen({ onGuest, onLoggedIn }) {
   const [mode, setMode] = useState('login'); // login | register | guest
-  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [birthDate8, setBirthDate8] = useState('');
@@ -47,31 +42,45 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       setErr('생년월일을 숫자 8자리(예: 20150315)로 올바르게 입력해 주세요.');
       return;
     }
-    if (password.length < 6) {
-      setErr('비밀번호는 6자 이상이어야 합니다.');
+    const nick = displayName.trim();
+    if (nick.length < 2 || nick.length > 24) {
+      setErr('표시 이름은 2~24자로 입력해 주세요.');
       return;
     }
-    if (password !== password2) {
+    const pin = password.replace(/\D/g, '');
+    if (pin.length !== 4) {
+      setErr('비밀번호는 숫자 4자리로 입력해 주세요.');
+      return;
+    }
+    if (pin !== password2.replace(/\D/g, '')) {
       setErr('비밀번호 확인이 일치하지 않습니다.');
       return;
     }
-    const localName = emailLocalPart(email);
+    let internalEmail;
+    try {
+      internalEmail = buildAccountEmail(nick, bd);
+    } catch {
+      setErr('표시 이름과 생년월일을 확인해 주세요.');
+      return;
+    }
+    const firebasePw = pinToFirebasePassword(pin);
     setBusy(true);
     try {
-      const user = await registerWithEmail(email, password, localName);
+      const user = await registerWithEmail(internalEmail, firebasePw, nick);
       await createUserProfile(user.uid, {
-        email: user.email || email,
+        email: user.email || internalEmail,
         birthDate: bd,
-        displayName: localName,
+        displayName: nick,
       });
-      safeSetItem('sisort_name', localName);
+      safeSetItem('sisort_name', nick);
       safeSetItem(GUEST_KEY, '0');
       onLoggedIn(user);
     } catch (er) {
       const code = er?.code || '';
-      if (code === 'auth/email-already-in-use') setErr('이미 사용 중인 이메일입니다. 로그인해 주세요.');
-      else if (code === 'auth/invalid-email') setErr('이메일 형식을 확인해 주세요.');
-      else if (code === 'auth/weak-password') setErr('비밀번호가 너무 짧습니다.');
+      if (code === 'auth/email-already-in-use') {
+        setErr('이미 같은 표시 이름·생년월일로 가입된 계정입니다. 로그인해 주세요.');
+      } else if (code === 'auth/invalid-email') setErr('계정 식별에 실패했습니다. 표시 이름을 바꿔 보세요.');
+      else if (code === 'auth/weak-password') setErr('비밀번호 처리에 실패했습니다.');
       else setErr(er?.message || '회원가입에 실패했습니다.');
     } finally {
       setBusy(false);
@@ -81,9 +90,27 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErr('');
+    const nick = displayName.trim();
+    const bd = birthDate8.trim().replace(/\D/g, '');
+    const pin = password.replace(/\D/g, '');
+    if (nick.length < 2 || bd.length !== 8 || !isValidBirthDate8(bd)) {
+      setErr('표시 이름(2자 이상)과 생년월일 8자리를 확인해 주세요.');
+      return;
+    }
+    if (pin.length !== 4) {
+      setErr('비밀번호는 숫자 4자리입니다.');
+      return;
+    }
+    let internalEmail;
+    try {
+      internalEmail = buildAccountEmail(nick, bd);
+    } catch {
+      setErr('표시 이름과 생년월일을 확인해 주세요.');
+      return;
+    }
     setBusy(true);
     try {
-      const user = await loginWithEmail(email, password);
+      const user = await loginWithEmail(internalEmail, pinToFirebasePassword(pin));
       await recordUserAccess(user.uid);
       const name = user.displayName || user.email?.split('@')[0] || '사용자';
       safeSetItem('sisort_name', name);
@@ -92,8 +119,8 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     } catch (er) {
       const code = er?.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setErr('이메일 또는 비밀번호가 올바르지 않습니다.');
-      } else if (code === 'auth/invalid-email') setErr('이메일 형식을 확인해 주세요.');
+        setErr('표시 이름·생년월일·비밀번호(4자리)를 확인해 주세요.');
+      } else if (code === 'auth/invalid-email') setErr('로그인 정보를 확인해 주세요.');
       else setErr(er?.message || '로그인에 실패했습니다.');
     } finally {
       setBusy(false);
@@ -141,7 +168,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
         침묵의 가나다
       </h1>
       <p className="text-slate-400 text-sm mb-6 text-center break-keep max-w-md">
-        회원가입 시 생년월일(8자리)과 이메일만 받으며, 게임·명예의 전당에는 이메일 @ 앞 표시가 쓰입니다. 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
+        회원은 표시 이름·생년월일·숫자 비밀번호 4자리만 받습니다(이메일 입력 없음). 같은 이름·생일 조합은 한 계정만 만들 수 있습니다. 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
       </p>
 
       <div className="flex gap-2 mb-6">
@@ -173,21 +200,33 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       {mode === 'login' && (
         <form onSubmit={handleLogin} className="w-full max-w-sm space-y-3">
           <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="이메일"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="표시 이름 (가입 시와 동일)"
+            maxLength={24}
+            autoComplete="username"
             className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
             required
           />
           <input
+            inputMode="numeric"
+            autoComplete="bday"
+            value={birthDate8}
+            onChange={(e) => setBirthDate8(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            placeholder="생년월일 8자리 (YYYYMMDD)"
+            maxLength={8}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 tracking-widest"
+            required
+          />
+          <input
+            inputMode="numeric"
             type="password"
             autoComplete="current-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="비밀번호"
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
+            onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="비밀번호 4자리 (숫자)"
+            maxLength={4}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 tracking-widest"
             required
           />
           <button type="submit" disabled={busy} className="w-full rounded-xl bg-blue-600 py-3 font-bold disabled:opacity-50">
@@ -198,6 +237,15 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
 
       {mode === 'register' && (
         <form onSubmit={handleRegister} className="w-full max-w-sm space-y-3">
+          <input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="표시 이름 (2~24자)"
+            maxLength={24}
+            autoComplete="off"
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
+            required
+          />
           <input
             inputMode="numeric"
             autoComplete="bday"
@@ -210,30 +258,25 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
           />
           <p className="text-[11px] text-slate-500 text-center -mt-1">예: 20150315</p>
           <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="이메일"
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
-            required
-          />
-          <input
+            inputMode="numeric"
             type="password"
             autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="비밀번호 (6자 이상)"
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
+            onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="비밀번호 4자리 (숫자)"
+            maxLength={4}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 tracking-widest"
             required
           />
           <input
+            inputMode="numeric"
             type="password"
             autoComplete="new-password"
             value={password2}
-            onChange={(e) => setPassword2(e.target.value)}
-            placeholder="비밀번호 확인"
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
+            onChange={(e) => setPassword2(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="비밀번호 확인 (4자리)"
+            maxLength={4}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 tracking-widest"
             required
           />
           <button type="submit" disabled={busy} className="w-full rounded-xl bg-emerald-600 py-3 font-bold disabled:opacity-50">

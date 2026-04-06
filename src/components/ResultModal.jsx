@@ -38,6 +38,19 @@ export default function ResultModal({
           <h2 className="text-4xl font-black text-green-400 mb-2">레벨 {level} 클리어!</h2>
           {level % 3 === 0 && <p className="text-yellow-400 font-bold mb-4">보너스! &apos;길라잡이&apos;를 1개 얻었습니다. (3레벨마다)</p>}
 
+          <button
+            type="button"
+            onClick={() => {
+              if (reviewedWords.length > 0 && reviewedWords.length < allCards.length) {
+                if (!window.confirm('복습을 모두 마치지 않았습니다. 로비(홈)로 나가시겠습니까?')) return;
+              }
+              onGoLobby?.();
+            }}
+            className="mb-4 w-full max-w-sm rounded-xl border border-slate-500 bg-slate-700/90 py-2.5 text-sm font-bold text-slate-100 hover:bg-slate-600"
+          >
+            🏠 홈으로 나가기
+          </button>
+
           {/* 모바일: 단어 목록·순서를 숨기고 버튼으로만 퀴즈 진입 (정답 노출 방지) */}
           <div className="md:hidden w-full mb-4 space-y-3 text-center">
             <p className="text-sm text-slate-300">
@@ -164,6 +177,11 @@ export default function ResultModal({
             setQuizCard(null);
           }}
           onClose={() => setQuizCard(null)}
+          onGoLobby={() => {
+            if (!window.confirm('복습 중입니다. 로비(홈)로 나가시겠습니까?')) return;
+            setQuizCard(null);
+            onGoLobby?.();
+          }}
         />
       )}
     </div>

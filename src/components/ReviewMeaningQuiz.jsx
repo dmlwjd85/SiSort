@@ -5,7 +5,7 @@ import DraggablePanel from './DraggablePanel.jsx';
 /**
  * 레벨 클리어 후 뜻 복습: 정답 포함 3지선다 (화면 중앙 팝업)
  */
-export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose }) {
+export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose, onGoLobby }) {
   const choices = useMemo(() => buildMeaningChoices(card, allCards), [card, allCards]);
   const [picked, setPicked] = useState(null);
   const [phase, setPhase] = useState('pick'); /* pick | correct | wrong */
@@ -75,7 +75,7 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose }
           </p>
         )}
 
-        <div className="mt-6 flex justify-center gap-3">
+        <div className="mt-6 flex flex-col items-stretch gap-2 sm:flex-row sm:justify-center sm:gap-3">
           {phase === 'wrong' && (
             <button
               type="button"
@@ -83,6 +83,15 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose }
               className="rounded-full bg-slate-600 hover:bg-slate-500 px-6 py-2 font-bold text-white"
             >
               닫기
+            </button>
+          )}
+          {typeof onGoLobby === 'function' && (
+            <button
+              type="button"
+              onClick={onGoLobby}
+              className="rounded-full border border-amber-600/80 bg-slate-800 px-6 py-2 font-bold text-amber-200 hover:bg-slate-700"
+            >
+              🏠 홈으로 나가기
             </button>
           )}
         </div>
