@@ -62,11 +62,11 @@ export function pinToFirebasePassword(pin4) {
 
 /**
  * 마스터 계정: Firebase 콘솔에서 생성할 내부 이메일
- * — «첫 로그인 번호» 6자리가 로컬파트에 그대로 들어가 동일 번호로 재현 가능(권한 연동용)
+ * — «첫 로그인 번호» 숫자(6자리 또는 7자리)가 로컬파트에 그대로 들어감
  */
-export function buildMasterAccountEmail(firstLoginSixDigits) {
-  const n = String(firstLoginSixDigits || '').replace(/\D/g, '');
-  if (n.length !== 6) {
+export function buildMasterAccountEmail(firstLoginDigits) {
+  const n = String(firstLoginDigits || '').replace(/\D/g, '');
+  if (n.length !== 6 && n.length !== 7) {
     throw new Error('INVALID_MASTER_LOGIN');
   }
   return `master_${n}@${DOMAIN}`;
@@ -74,15 +74,14 @@ export function buildMasterAccountEmail(firstLoginSixDigits) {
 
 /** 마스터 전용 이메일이면 기존 관리 권한(마스터)과 동일하게 취급 */
 export function isMasterAccountEmail(email) {
-  return /^master_\d{6}@sisort\.local$/i.test(String(email || '').trim());
+  return /^master_\d{6,7}@sisort\.local$/i.test(String(email || '').trim());
 }
 
 /**
- * 마스터: «첫 로그인 번호» 6자리를 그대로 Firebase 비밀번호로 사용(콘솔에도 동일 6자리로 등록)
- * — Firebase에 다른 비밀번호를 넣으면 로그인되지 않음
+ * 마스터: «첫 로그인 번호»(6·7자리)를 그대로 Firebase 비밀번호로 사용(콘솔에도 동일 숫자로 등록)
  */
-export function masterPinToFirebasePassword(pin6) {
-  const p = String(pin6 || '').replace(/\D/g, '');
-  if (p.length !== 6) throw new Error('INVALID_MASTER_PIN');
+export function masterPinToFirebasePassword(pinDigits) {
+  const p = String(pinDigits || '').replace(/\D/g, '');
+  if (p.length !== 6 && p.length !== 7) throw new Error('INVALID_MASTER_PIN');
   return p;
 }

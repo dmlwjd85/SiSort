@@ -62,7 +62,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const [legalName, setLegalName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
-  /** 마스터: 첫 로그인 번호 6자리만 입력 — Firebase 비밀번호도 이와 동일한 6자리 */
+  /** 마스터: 첫 로그인 번호 6~7자리만 입력 — Firebase 비밀번호도 동일 숫자 */
   const [masterFirstLogin, setMasterFirstLogin] = useState('');
   const [guestName, setGuestName] = useState('');
   const [err, setErr] = useState('');
@@ -172,8 +172,8 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     e.preventDefault();
     setErr('');
     const first = masterFirstLogin.replace(/\D/g, '');
-    if (first.length !== 6) {
-      setErr('마스터 «첫 로그인 번호»는 숫자 6자리입니다. (Firebase 비밀번호와 동일하게 설정)');
+    if (first.length !== 6 && first.length !== 7) {
+      setErr('마스터 «첫 로그인 번호»는 숫자 6자리 또는 7자리입니다. (Firebase 비밀번호와 동일)');
       return;
     }
     let internalEmail;
@@ -204,7 +204,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       const code = er?.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setErr(
-          'Firebase에 master_6자리@sisort.local 사용자가 있고, 비밀번호가 «첫 로그인 번호»와 같은 6자리인지 확인해 주세요. / Ensure Auth user exists and password equals the same 6-digit first-login number.'
+          'Firebase에 master_6~7자리@sisort.local 사용자가 있고, 비밀번호가 «첫 로그인 번호»와 같은지 확인해 주세요. / Ensure Auth user exists and password equals the same first-login number.'
         );
       } else if (code === 'auth/invalid-email') {
         setErr('마스터 로그인 정보 형식을 확인해 주세요.');
@@ -365,19 +365,18 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
         <form onSubmit={handleMasterLogin} className="w-full space-y-3">
           <div className="rounded-xl border border-violet-500/40 bg-violet-950/35 px-3 py-2.5 mb-1">
             <p className="text-[12px] text-violet-100/95 text-center break-keep leading-relaxed">
-              <strong className="text-amber-200">마스터</strong>는 숫자 6자리 «첫 로그인 번호»만 입력합니다.{' '}
+              <strong className="text-amber-200">마스터</strong>는 «첫 로그인 번호»만 입력합니다(숫자 6자리 또는 7자리).{' '}
               Firebase Authentication 에는 이메일{' '}
-              <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_같은6자리@sisort.local</code> 로 사용자를 만들고,{' '}
-              <strong className="text-amber-200">비밀번호도 그 6자리와 동일</strong>하게 넣어야 합니다(별도 비밀번호 없음). 권한은 기존
-              마스터·관리자와 동일합니다.
+              <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_같은숫자@sisort.local</code> 로 사용자를 만들고,{' '}
+              <strong className="text-amber-200">비밀번호도 그 숫자와 동일</strong>하게 넣어야 합니다. 권한은 기존 마스터·관리자와 동일합니다.
             </p>
             <p className="text-[11px] text-slate-500 text-center mt-1.5 break-keep">
-              One 6-digit field. In Firebase: email master_NNNNNN@sisort.local and password = the same NNNNNN.
+              One field — 6 or 7 digits. In Firebase: email master_NNN…@sisort.local and password = the same digits.
             </p>
           </div>
           <div>
             <label htmlFor="sisort-master-first" className="block text-xs font-bold text-violet-200/95 mb-1.5">
-              첫 로그인 번호 (= Firebase 비밀번호, 숫자 6자리)
+              첫 로그인 번호 (= Firebase 비밀번호, 숫자 6~7자리)
             </label>
             <input
               id="sisort-master-first"
@@ -385,9 +384,9 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
               type="password"
               name="masterFirstLogin"
               value={masterFirstLogin}
-              onChange={(e) => setMasterFirstLogin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              maxLength={6}
+              onChange={(e) => setMasterFirstLogin(e.target.value.replace(/\D/g, '').slice(0, 7))}
+              placeholder="0000000"
+              maxLength={7}
               autoComplete="current-password"
               className={`${inputBase} tracking-widest text-center text-lg`}
               required

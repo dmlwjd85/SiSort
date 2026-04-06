@@ -158,7 +158,7 @@ export async function fetchAdminCapabilities(user) {
   };
   if (!user?.uid) return none;
 
-  /** 마스터 전용 로그인 이메일(master_6자리@…) — Firestore admins 와 동일한 전 권한 */
+  /** 마스터 전용 로그인 이메일(master_6~7자리@…) — Firestore admins 와 동일한 전 권한 */
   if (user.email && isMasterAccountEmail(user.email)) {
     return {
       isAdmin: true,
