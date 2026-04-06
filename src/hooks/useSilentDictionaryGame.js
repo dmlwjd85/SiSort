@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { shuffleArray, getLevelTime, assignDictionaryRanks, dedupeWordEntriesByWord } from '../utils/helpers.js';
-import { pickWordsBalancedByChoseong, hangulChoseongIndex } from '../utils/wordPick.js';
+import { hangulChoseongIndex } from '../utils/wordPick.js';
 import {
   startRoomGame,
   updateRoomGame,
@@ -72,8 +72,9 @@ export function serializeGame(s) {
 }
 
 /**
- * ?덈꺼 ?곹깭 ?앹꽦 (?쒖닔)
- * @param {string[]} usedWordsBefore - ?댁쟾 ?덈꺼源뚯? ?꾩쟻 ?ъ슜 ?⑥뼱
+ * 레벨 묶음 생성 — 단어는 레벨마다 완전 무작위(초성 패턴 없음).
+ * 세션에서 아직 안 나온 단어를 우선 소진한 뒤, 풀 전체를 다시 섞어 이어감(전체 플레이 중 모든 단어가 최소 1회 등장하도록).
+ * @param {string[]} usedWordsBefore - 이전 레벨까지 누적 사용된 단어(단어 문자열)
  */
 function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUsedWords) {
   const totalPlayers = members.length;
@@ -85,39 +86,50 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
   const wordPool = dedupeWordEntriesByWord(
     (pack.words || []).filter((w) => w && typeof w.word === 'string' && w.word.length > 0)
   );
+  /* 한 레벨에서 서로 다른 카드가 필요하므로 풀 크기가 부족하면 불가 */
   if (wordPool.length < totalCardsNeeded) return null;
 
-  let availableWords = wordPool.filter((w) => !(keepUsedWords && usedWordsBefore.includes(w.word)));
-  let usedWordsNext = [...usedWordsBefore];
-  /* 이미 나온 단어는 같은 판에서 다시 쓰지 않음 — 부족하면 null (상위에서 처음부터 재시작 등 처리) */
-  if (availableWords.length < totalCardsNeeded) {
-    return null;
+  const usedSet = new Set(keepUsedWords && Array.isArray(usedWordsBefore) ? usedWordsBefore : []);
+  const unseen = wordPool.filter((w) => !usedSet.has(w.word));
+  let pickedFromFullPoolCycle = false;
+  let selectedWords = [];
+
+  if (unseen.length >= totalCardsNeeded) {
+    selectedWords = shuffleArray(unseen).slice(0, totalCardsNeeded);
+  } else if (unseen.length > 0) {
+    const shU = shuffleArray(unseen);
+    const needMore = totalCardsNeeded - shU.length;
+    const seenOnly = wordPool.filter((w) => usedSet.has(w.word));
+    const shS = shuffleArray(seenOnly);
+    selectedWords = [...shU, ...shS.slice(0, needMore)];
+  } else {
+    /* 한 번씩 모두 등장 완료 → 풀 전체에서 무작위로 다음 레벨 구성 */
+    pickedFromFullPoolCycle = keepUsedWords && usedSet.size > 0;
+    selectedWords = shuffleArray([...wordPool]).slice(0, totalCardsNeeded);
   }
 
-  const picked = pickWordsBalancedByChoseong(availableWords, totalCardsNeeded);
-  if (picked.length < totalCardsNeeded) return null;
-
-  /* 동일 단어가 두 번 이상 나오지 않도록 보장 (온라인 동기화 시 카드 id·표시 혼선 방지) */
+  /* 동일 단어가 같은 레벨에서 두 번 나오지 않도록 보장 */
   const seenW = new Set();
-  const selectedWords = [];
-  for (const w of picked) {
+  const uniquePick = [];
+  for (const w of selectedWords) {
     if (!w || typeof w.word !== 'string') continue;
     if (seenW.has(w.word)) continue;
     seenW.add(w.word);
-    selectedWords.push(w);
+    uniquePick.push(w);
   }
-  if (selectedWords.length < totalCardsNeeded) {
-    const rest = shuffleArray(
-      availableWords.filter((w) => w && typeof w.word === 'string' && !seenW.has(w.word))
-    );
+  if (uniquePick.length < totalCardsNeeded) {
+    const rest = shuffleArray(wordPool.filter((w) => w && typeof w.word === 'string' && !seenW.has(w.word)));
     for (const w of rest) {
-      if (selectedWords.length >= totalCardsNeeded) break;
+      if (uniquePick.length >= totalCardsNeeded) break;
       seenW.add(w.word);
-      selectedWords.push(w);
+      uniquePick.push(w);
     }
   }
-  if (selectedWords.length < totalCardsNeeded) return null;
+  if (uniquePick.length < totalCardsNeeded) return null;
 
+  selectedWords = uniquePick;
+
+  let usedWordsNext;
   if (keepUsedWords) {
     usedWordsNext = [...usedWordsBefore, ...selectedWords.map((w) => w.word)];
   } else {
@@ -168,6 +180,8 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     isPreparing: true,
     prepTimeLeft: 5,
     gameState: 'playing',
+    /** 풀의 모든 단어를 한 번씩 쓴 뒤 다시 무작위로 뽑기 시작한 레벨 */
+    exhaustionCycle: pickedFromFullPoolCycle,
   };
 }
 
@@ -424,20 +438,14 @@ export function useSilentDictionaryGame(options = {}) {
     (targetLevel, keepUsedWords = true, membersArg, usedWordsOverride) => {
       const members = membersArg ?? sessionMembersRef.current;
       const uw = usedWordsOverride !== undefined ? usedWordsOverride : usedWords;
-      let bundle = buildLevelBundle(targetLevel, members, selectedPackKey, uw, keepUsedWords);
-      /* 미사용 단어가 모자라면 같은 레벨을 전체 풀을 다시 섞어 이어감(레벨 1로 되돌리지 않음) */
-      let reshuffledFromExhaustion = false;
-      if (!bundle && keepUsedWords) {
-        reshuffledFromExhaustion = true;
-        bundle = buildLevelBundle(targetLevel, members, selectedPackKey, [], false);
-      }
+      const bundle = buildLevelBundle(targetLevel, members, selectedPackKey, uw, keepUsedWords);
       if (!bundle) {
         setMessage('단어를 구성할 수 없습니다. 참가 인원(2~15명)과 난이도를 확인해 주세요.');
         return;
       }
       applyLevelBundle(bundle);
-      if (reshuffledFromExhaustion) {
-        setMessage('단어를 모두 써서 다시 섞어 이어갑니다.');
+      if (bundle.exhaustionCycle) {
+        setMessage('모든 단어를 한 번씩 썼습니다. 이제부터는 무작위로 이어갑니다.');
       }
     },
     [selectedPackKey, usedWords, applyLevelBundle]
