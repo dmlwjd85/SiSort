@@ -81,7 +81,6 @@ export default function PlayScreen(props) {
             userHand={userHand}
             mySlotIndex={mySlotIndex}
             hintActorName={hintActorName}
-            isHintMode={isHintMode}
           />
         </div>
 
