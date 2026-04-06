@@ -28,6 +28,8 @@ export default function LobbyScreen({
   onStartPlay,
   isGuest = false,
   packProgress = {},
+  /** 마스터가 부여한 추가 플레이 가능 팩(회원 전용) */
+  packUnlockBonus = [],
   onLogout,
   logoutLabel = '로그아웃',
   onOpenAdmin,
@@ -99,10 +101,14 @@ export default function LobbyScreen({
       remoteRoom?.hostPackProgress &&
       typeof remoteRoom.hostPackProgress === 'object'
     ) {
-      return getUnlockedPackKeys({ isGuest: false, packProgress: remoteRoom.hostPackProgress });
+      return getUnlockedPackKeys({
+        isGuest: false,
+        packProgress: remoteRoom.hostPackProgress,
+        packUnlockBonus: Array.isArray(remoteRoom.hostPackUnlockBonus) ? remoteRoom.hostPackUnlockBonus : [],
+      });
     }
-    return getUnlockedPackKeys({ isGuest, packProgress });
-  }, [isGuest, packProgress, mode, roomId, remoteRoom?.hostPackProgress]);
+    return getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus });
+  }, [isGuest, packProgress, packUnlockBonus, mode, roomId, remoteRoom?.hostPackProgress, remoteRoom?.hostPackUnlockBonus]);
 
   useEffect(() => {
     if (!unlockedPackKeys.has(selectedPackKey)) {
@@ -128,12 +134,20 @@ export default function LobbyScreen({
     const prev = remoteRoom.hostPackProgress && typeof remoteRoom.hostPackProgress === 'object'
       ? remoteRoom.hostPackProgress
       : {};
-    if (JSON.stringify(prev) === JSON.stringify(packProgress || {})) return;
+    const prevBonus = Array.isArray(remoteRoom.hostPackUnlockBonus) ? remoteRoom.hostPackUnlockBonus : [];
+    const nextBonus = Array.isArray(packUnlockBonus) ? packUnlockBonus : [];
+    if (
+      JSON.stringify(prev) === JSON.stringify(packProgress || {})
+      && JSON.stringify(prevBonus) === JSON.stringify(nextBonus)
+    ) {
+      return;
+    }
     updateDoc(doc(db, 'rooms', roomId), {
       hostPackProgress: packProgress,
+      hostPackUnlockBonus: nextBonus,
       updatedAt: serverTimestamp(),
     }).catch(() => {});
-  }, [db, roomId, isHost, mode, remoteRoom, packProgress]);
+  }, [db, roomId, isHost, mode, remoteRoom, packProgress, packUnlockBonus]);
 
   /** 명예의 전당 실시간 구독(로그인 여부와 무관하게 읽기 전용) */
   useEffect(() => {
@@ -320,6 +334,7 @@ export default function LobbyScreen({
         packKey: selectedPackKey,
         members: localMembers,
         hostPackProgress: packProgress,
+        hostPackUnlockBonus: Array.isArray(packUnlockBonus) ? packUnlockBonus : [],
       });
       setRoomId(code);
       setIsHost(true);

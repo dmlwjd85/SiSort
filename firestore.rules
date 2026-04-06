@@ -2,7 +2,11 @@ rules_version = '2';
 
 /**
  * 배포: Firebase 콘솔 → Firestore → 규칙에 붙여 넣기
- * 관리자: 콘솔에서 컬렉션 `admins` 에 문서 ID = 교사 계정 uid (빈 맵 {} 도 가능)
+ * 관리자: `admins/{uid}` 문서
+ * - 필드 없음(레거시 {}) → 마스터와 동일(기록 열람 + 회원별 packUnlockBonus)
+ * - master: true → 위와 동일
+ * - viewRecords: true → users 목록·기록 열람
+ * - unlockMembers: true → 타인 users 문서의 packUnlockBonus 만 갱신 가능
  */
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -15,9 +19,42 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isAdmin() {
+    function adminDoc() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function adminExists() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function adminLegacyFull() {
+      return adminExists() && adminDoc().data.keys().size() == 0;
+    }
+
+    function adminMasterOrLegacy() {
+      return adminExists()
+        && (adminDoc().data.master == true || adminLegacyFull());
+    }
+
+    function adminHasViewRecords() {
+      return adminExists()
+        && (adminMasterOrLegacy() || adminDoc().data.viewRecords == true);
+    }
+
+    function adminCanUnlockOthers() {
+      return adminExists()
+        && (adminMasterOrLegacy() || adminDoc().data.unlockMembers == true);
+    }
+
+    function adminCanReadUsers() {
+      return adminHasViewRecords() || adminCanUnlockOthers();
+    }
+
+    function packUnlockBonusUpdateOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['packUnlockBonus'])
+        && request.resource.data.packUnlockBonus is list
+        && request.resource.data.packUnlockBonus.size() <= 32;
     }
 
     /** 팩별 사용자 최대 클리어 레벨(명예의 전당 쓰기 검증용) */
@@ -59,9 +96,10 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || adminCanReadUsers();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow update: if isOwner(userId)
+        || (adminCanUnlockOthers() && packUnlockBonusUpdateOnly());
       allow delete: if false;
     }
 

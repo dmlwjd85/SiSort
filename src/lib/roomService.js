@@ -21,9 +21,9 @@ export const ONLINE_ROOM_MAX = 4;
  * @param {import('firebase/firestore').Firestore} db
  */
 /**
- * @param {{ hostId: string, packKey: string, members: unknown[], hostPackProgress?: Record<string, number> }} payload
+ * @param {{ hostId: string, packKey: string, members: unknown[], hostPackProgress?: Record<string, number>, hostPackUnlockBonus?: string[] }} payload
  */
-export async function createRoomDoc(db, roomId, { hostId, packKey, members, hostPackProgress }) {
+export async function createRoomDoc(db, roomId, { hostId, packKey, members, hostPackProgress, hostPackUnlockBonus }) {
   const ref = doc(db, 'rooms', roomId);
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
@@ -34,6 +34,7 @@ export async function createRoomDoc(db, roomId, { hostId, packKey, members, host
       hostId,
       packKey,
       hostPackProgress: hostPackProgress && typeof hostPackProgress === 'object' ? hostPackProgress : {},
+      hostPackUnlockBonus: Array.isArray(hostPackUnlockBonus) ? hostPackUnlockBonus : [],
       phase: 'lobby',
       members,
       game: null,

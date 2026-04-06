@@ -10,6 +10,7 @@ import {
   increment,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase.js';
+import { PACK_DATA } from '../data/words.js';
 
 const USERS = 'users';
 const ADMINS = 'admins';
@@ -87,15 +88,27 @@ export async function updatePackProgressRemote(uid, packKey, clearedLevel) {
 }
 
 /**
+ * 팩 진행도 + 관리자 지정 추가 해제 팩 목록
+ * @returns {Promise<{ packProgress: Record<string, number>, packUnlockBonus: string[] }>}
+ */
+export async function fetchUserPackState(uid) {
+  const db = getFirestoreDb();
+  if (!db) return { packProgress: {}, packUnlockBonus: [] };
+  const snap = await getDoc(doc(db, USERS, uid));
+  if (!snap.exists()) return { packProgress: {}, packUnlockBonus: [] };
+  const d = snap.data();
+  const packProgress = typeof d.packProgress === 'object' && d.packProgress ? d.packProgress : {};
+  const raw = d.packUnlockBonus;
+  const packUnlockBonus = Array.isArray(raw) ? raw.filter((k) => typeof k === 'string' && PACK_DATA[k]) : [];
+  return { packProgress, packUnlockBonus };
+}
+
+/**
  * @returns {Promise<Record<string, number>|null>}
  */
 export async function fetchUserPackProgress(uid) {
-  const db = getFirestoreDb();
-  if (!db) return null;
-  const snap = await getDoc(doc(db, USERS, uid));
-  if (!snap.exists()) return {};
-  const d = snap.data();
-  return typeof d.packProgress === 'object' && d.packProgress ? d.packProgress : {};
+  const { packProgress } = await fetchUserPackState(uid);
+  return packProgress;
 }
 
 /**
@@ -125,21 +138,86 @@ export async function fetchUserDocument(uid) {
 }
 
 /**
- * 관리자 목록: 관리자 문서가 있거나 환경변수 이메일 목록
+ * Firestore `admins/{uid}` 또는 VITE_ADMIN_EMAILS 로 부여된 권한
+ * - master: true → 기록 조회 + 회원별 잠금 해제 전부 (가입자 중 정해진 마스터 계정에 사용)
+ * - viewRecords / unlockMembers: 세분화 권한
+ * - 문서가 존재하지만 필드가 비어 있으면(레거시) 마스터와 동일하게 전 권한
  */
-export async function checkIsAdminUser(user) {
-  if (!user?.uid) return false;
+export async function fetchAdminCapabilities(user) {
+  const none = {
+    isAdmin: false,
+    master: false,
+    viewRecords: false,
+    unlockMembers: false,
+    showAdminPanel: false,
+  };
+  if (!user?.uid) return none;
+
   const env = import.meta.env.VITE_ADMIN_EMAILS || '';
   const emails = env
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (user.email && emails.includes(user.email.toLowerCase())) return true;
+  if (user.email && emails.includes(user.email.toLowerCase())) {
+    return {
+      isAdmin: true,
+      master: true,
+      viewRecords: true,
+      unlockMembers: true,
+      showAdminPanel: true,
+    };
+  }
 
   const db = getFirestoreDb();
-  if (!db) return false;
+  if (!db) return none;
   const snap = await getDoc(doc(db, ADMINS, user.uid));
-  return snap.exists();
+  if (!snap.exists()) return none;
+
+  const d = snap.data() || {};
+  const keys = Object.keys(d);
+  // 레거시: 빈 맵 {} 만 있으면 전 권한(기존 배포와 동일)
+  if (keys.length === 0) {
+    return {
+      isAdmin: true,
+      master: true,
+      viewRecords: true,
+      unlockMembers: true,
+      showAdminPanel: true,
+    };
+  }
+
+  const master = d.master === true;
+  const viewRecords = master || d.viewRecords === true;
+  const unlockMembers = master || d.unlockMembers === true;
+  const showAdminPanel = viewRecords || unlockMembers;
+  return {
+    isAdmin: showAdminPanel,
+    master,
+    viewRecords,
+    unlockMembers,
+    showAdminPanel,
+  };
+}
+
+/** @deprecated fetchAdminCapabilities 권장 — 패널 표시 여부만 필요할 때 */
+export async function checkIsAdminUser(user) {
+  const c = await fetchAdminCapabilities(user);
+  return c.showAdminPanel;
+}
+
+/**
+ * 관리자(회원별 잠금 해제 권한): 대상 회원의 packUnlockBonus 갱신
+ * @param {string} targetUid
+ * @param {string[]} packKeys PACK_DATA 에 있는 키만 유지
+ */
+export async function setUserPackUnlockBonus(targetUid, packKeys) {
+  const db = getFirestoreDb();
+  if (!db) throw new Error('Firestore 없음');
+  const allowed = new Set(Object.keys(PACK_DATA).filter((k) => PACK_DATA[k]));
+  const list = [...new Set(packKeys)].filter((k) => allowed.has(k));
+  await updateDoc(doc(db, USERS, targetUid), {
+    packUnlockBonus: list,
+  });
 }
 
 /**

@@ -21,18 +21,27 @@ export const PACK_UNLOCK_ORDER = [
 const UNLOCK_THRESHOLD = 8;
 
 /**
- * @param {{ isGuest: boolean, packProgress?: Record<string, number> }} opts
+ * @param {{ isGuest: boolean, packProgress?: Record<string, number>, packUnlockBonus?: string[] }} opts
+ * packUnlockBonus: 마스터·관리자가 users 문서에 부여한 추가 플레이 가능 팩(진행 체인과 무관)
  * @returns {Set<string>} 플레이 가능한 팩 키
  */
-export function getUnlockedPackKeys({ isGuest, packProgress = {} }) {
+export function getUnlockedPackKeys({ isGuest, packProgress = {}, packUnlockBonus = [] }) {
   if (isGuest) {
     return new Set(['kindergarten', 'grade6social'].filter((k) => PACK_DATA[k]));
   }
+
+  const bonus = new Set(
+    (Array.isArray(packUnlockBonus) ? packUnlockBonus : []).filter((k) => k && PACK_DATA[k])
+  );
 
   const unlocked = new Set();
   for (let i = 0; i < PACK_UNLOCK_ORDER.length; i++) {
     const key = PACK_UNLOCK_ORDER[i];
     if (!PACK_DATA[key]) continue;
+    if (bonus.has(key)) {
+      unlocked.add(key);
+      continue;
+    }
     if (i === 0) {
       unlocked.add(key);
       continue;
@@ -43,10 +52,13 @@ export function getUnlockedPackKeys({ isGuest, packProgress = {} }) {
       unlocked.add(key);
     }
   }
+  for (const k of bonus) {
+    if (PACK_DATA[k]) unlocked.add(k);
+  }
   return unlocked;
 }
 
 /** 팩이 잠금인지 (회원 기준) */
-export function isPackLocked(packKey, { isGuest, packProgress }) {
-  return !getUnlockedPackKeys({ isGuest, packProgress }).has(packKey);
+export function isPackLocked(packKey, { isGuest, packProgress, packUnlockBonus }) {
+  return !getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus }).has(packKey);
 }
