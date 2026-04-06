@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import ReviewMeaningQuiz from './ReviewMeaningQuiz.jsx';
 import DraggablePanel from './DraggablePanel.jsx';
 import { shuffleArray } from '../utils/helpers.js';
+import { playLevelClearCelebration } from '../lib/gameSounds.js';
 
 /**
  * 레벨 클리어 / 게임 오버 / 최종 승리 모달
@@ -23,6 +24,7 @@ export default function ResultModal({
   const [reviewPrepDone, setReviewPrepDone] = useState(false);
   /** 복습 전에 단어를 떠올릴 생각할 시간(초) — 버튼으로 바로 넘어갈 수 있음 */
   const [reviewPrepLeft, setReviewPrepLeft] = useState(15);
+  const lastFanfareLevelRef = useRef(null);
 
   /** 이번 레벨에서 복습할 카드: 1레벨 1장 … N레벨 N장(상한: 이번 레벨 카드 수) 무작위 추출 */
   const reviewOrder = useMemo(() => {
@@ -60,6 +62,14 @@ export default function ResultModal({
     const t = setTimeout(() => setReviewPrepLeft((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [gameState, reviewPrepDone, reviewPrepLeft]);
+
+  /** 복습 준비가 끝나 클리어 본화면(🎉)으로 들어갈 때 빵파레·박수 — 레벨당 1회 */
+  useEffect(() => {
+    if (gameState !== 'level_clear' || !reviewPrepDone) return;
+    if (lastFanfareLevelRef.current === level) return;
+    lastFanfareLevelRef.current = level;
+    playLevelClearCelebration();
+  }, [gameState, reviewPrepDone, level]);
 
   if (gameState !== 'level_clear' && gameState !== 'game_over' && gameState !== 'victory') return null;
 

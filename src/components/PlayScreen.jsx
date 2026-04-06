@@ -62,8 +62,6 @@ export default function PlayScreen(props) {
         gameState={gameState}
         isPaused={isPaused}
         onLeaveLobby={onLeaveLobby}
-        timeLeft={timeLeft}
-        isPreparing={isPreparing}
       />
 
       {gameState === 'table_review' && (
@@ -136,6 +134,25 @@ export default function PlayScreen(props) {
               : 'w-full shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end lg:min-h-0 max-lg:border-0 lg:border-l border-slate-700/60'
           }
         >
+          {/* 손패 바로 위: 남은 시간(헤더에 두지 않아 카드 보며 고민할 때도 보임) */}
+          {gameState === 'playing' && !isPreparing && (
+            <div
+              className="shrink-0 z-30 flex w-full items-center justify-center gap-2 border-b border-amber-500/35 bg-slate-950/95 px-3 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.35)] lg:rounded-t-xl lg:border lg:border-b-0 lg:border-slate-600/80"
+              aria-live="polite"
+            >
+              <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">남은 시간</span>
+              <span
+                className={`font-black tabular-nums ${
+                  Number.isFinite(timeLeft) && timeLeft > 0 && timeLeft <= 5
+                    ? 'animate-pulse text-3xl text-amber-200 md:text-4xl'
+                    : 'text-2xl text-slate-100 md:text-3xl'
+                }`}
+              >
+                {Math.ceil(Number.isFinite(timeLeft) ? timeLeft : 0)}
+                <span className="text-lg font-bold text-slate-400 md:text-xl">초</span>
+              </span>
+            </div>
+          )}
           <PlayerHand
             userHand={userHand}
             handlePlayCard={handlePlayCard}

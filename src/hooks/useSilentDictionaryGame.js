@@ -14,6 +14,11 @@ import {
   playerSelfLeaveRoom,
   ROOM_MAX,
 } from '../lib/roomService.js';
+import {
+  playCorrectPlacedNote,
+  playWrongPlacedBuzz,
+  resetCorrectNoteSequence,
+} from '../lib/gameSounds.js';
 
 const DEFAULT_PACK_KEY = 'kindergarten';
 
@@ -278,7 +283,7 @@ export function useSilentDictionaryGame(options = {}) {
   const pendingAfterTableReviewRef = useRef(null);
   const [level, setLevel] = useState(1);
   const [lives, setLives] = useState(3);
-  const [timeLeft, setTimeLeft] = useState(20.0);
+  const [timeLeft, setTimeLeft] = useState(() => getLevelTime(1));
   const [isPaused, setIsPaused] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -471,7 +476,9 @@ export function useSilentDictionaryGame(options = {}) {
         99,
         Math.max(0, Number.isFinite(Number(g.lives)) ? Math.floor(Number(g.lives)) : 3)
       );
-      const safeTime = Number.isFinite(Number(g.timeLeft)) ? Number(g.timeLeft) : 20;
+      const safeTime = Number.isFinite(Number(g.timeLeft))
+        ? Number(g.timeLeft)
+        : getLevelTime(safeLevel);
 
       const rawCards = Array.isArray(g.allCards) ? g.allCards : [];
       const safeCards = rawCards.map((c, i) => {
@@ -601,6 +608,7 @@ export function useSilentDictionaryGame(options = {}) {
     setPendingAfterTableReview(null);
     pendingAfterTableReviewRef.current = null;
     setGameOverExplain(null);
+    resetCorrectNoteSequence();
     setIsPaused(false);
     setIsHintMode(false);
     setHintActorName('');
@@ -702,6 +710,7 @@ export function useSilentDictionaryGame(options = {}) {
       setPendingAfterTableReview(null);
       pendingAfterTableReviewRef.current = null;
       setGameOverExplain(null);
+      resetCorrectNoteSequence();
 
       const snapshot = serializeGame({
         gameState: 'playing',
@@ -795,13 +804,14 @@ export function useSilentDictionaryGame(options = {}) {
     setPendingAfterTableReview(null);
     pendingAfterTableReviewRef.current = null;
     setGameOverExplain(null);
+    resetCorrectNoteSequence();
     setSessionMembers([]);
     setAllCards([]);
     setPlayedStack([]);
     setMessage('');
     setLevel(1);
     setLives(3);
-    setTimeLeft(20);
+    setTimeLeft(getLevelTime(1));
     setIsPaused(false);
     setUsedWords([]);
     setHints(2);
@@ -872,6 +882,7 @@ export function useSilentDictionaryGame(options = {}) {
     const stillInHand = prev.find((c) => c.id === wrongCard.id);
     if (!stillInHand || stillInHand.status !== 'hand') return;
 
+    playWrongPlacedBuzz();
     setIsPaused(true);
     const toDiscard = prev.filter((c) => c.status === 'hand' && c.rank < wrongCard.rank);
     /* 앞서 내야 했는데 밀린 카드 장수만큼 생명력 차감(최소 1) */
@@ -970,6 +981,7 @@ export function useSilentDictionaryGame(options = {}) {
           if (prev.some((c) => c.id === cardToPlay.id)) return prev;
           return [...prev, cardToPlay];
         });
+        playCorrectPlacedNote();
 
         if (unplayedCards.length === 1) {
           setIsPaused(true);
@@ -1036,6 +1048,7 @@ export function useSilentDictionaryGame(options = {}) {
           if (prev.some((c) => c.id === id)) return prev;
           return [...prev, cardToPlay];
         });
+        playCorrectPlacedNote();
         if (unplayedCards.length === 1) {
           setIsPaused(true);
           if (level % 3 === 0) setHints((h) => h + 1);
@@ -1288,7 +1301,7 @@ export function useSilentDictionaryGame(options = {}) {
         setMessage('');
         setLevel(1);
         setLives(3);
-        setTimeLeft(20);
+        setTimeLeft(getLevelTime(1));
         setIsPaused(false);
         setUsedWords([]);
         setHints(2);

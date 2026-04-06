@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * 플레이 화면 상단: 홈/처음부터, 레벨, 길라잡이, 생명력, 타이머 바
+ * 플레이 화면 상단: 홈/처음부터, 레벨, 길라잡이, 생명력 (남은 시간은 PlayScreen 손패 위 바)
  */
 export default function GameHeader({
   setGameState,
@@ -15,71 +15,65 @@ export default function GameHeader({
   gameState,
   isPaused,
   onLeaveLobby,
-  /** 라운드 남은 시간(초) — 마지막 5초만 크게 표시 */
-  timeLeft = 0,
-  isPreparing = false,
 }) {
-  /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) — 제한 시간은 로직만 유지하고 화면에는 표시하지 않음 */
+  /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) */
   const safeLives = Math.max(0, Math.min(99, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
-  const showFinalCount =
-    gameState === 'playing' &&
-    !isPaused &&
-    !isPreparing &&
-    Number.isFinite(timeLeft) &&
-    timeLeft > 0 &&
-    timeLeft <= 5;
 
   return (
-    <div className="shrink-0 bg-slate-800 p-3 sm:p-4 shadow-md z-10 border-b border-slate-700/80">
-      <div className="w-full max-w-[min(100%,90rem)] mx-auto px-1 sm:px-2 flex flex-wrap justify-between items-center gap-2">
-        <div className="flex items-center gap-2 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => {
-              if (onLeaveLobby) onLeaveLobby();
-              else setGameState('home');
-            }}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm sm:text-base font-bold transition-colors shadow"
-            title="로비로 나가기"
-          >
-            🏠 로비
-          </button>
-          <button
-            type="button"
-            onClick={startGame}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm sm:text-base font-bold transition-colors shadow"
-            title="1레벨부터 다시 시작하기"
-          >
-            🔄 처음부터
-          </button>
-          <div className="text-lg sm:text-xl font-bold bg-slate-700 px-3 sm:px-4 py-2 rounded-lg text-blue-300">
-            LEVEL {level} <span className="text-xs sm:text-sm text-slate-400 ml-1 sm:ml-2">/ {TOTAL_LEVELS}</span>
+    <div className="shrink-0 bg-slate-900/95 backdrop-blur-sm z-10 border-b border-slate-700/60 md:bg-slate-800 md:backdrop-blur-none">
+      <div className="w-full max-w-[min(100%,90rem)] mx-auto px-2 py-2 sm:px-3 sm:py-3 md:p-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-between sm:items-center sm:gap-2">
+        <div className="flex items-center justify-between gap-1.5 sm:justify-start sm:gap-2 md:gap-4 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (onLeaveLobby) onLeaveLobby();
+                else setGameState('home');
+              }}
+              className="bg-slate-700/90 hover:bg-slate-600 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm md:text-base font-bold transition-colors"
+              title="로비로 나가기"
+              aria-label="로비로 나가기"
+            >
+              <span className="md:hidden" aria-hidden>
+                🏠
+              </span>
+              <span className="hidden md:inline">🏠 로비</span>
+            </button>
+            <button
+              type="button"
+              onClick={startGame}
+              className="bg-slate-700/90 hover:bg-slate-600 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm md:text-base font-bold transition-colors"
+              title="1레벨부터 다시 시작하기"
+              aria-label="처음부터 다시 시작"
+            >
+              <span className="md:hidden" aria-hidden>
+                🔄
+              </span>
+              <span className="hidden md:inline">🔄 처음부터</span>
+            </button>
+          </div>
+          <div className="text-sm sm:text-lg md:text-xl font-black bg-slate-700/90 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sky-300 tabular-nums shrink-0">
+            Lv.{level}
+            <span className="text-slate-500 font-bold text-[10px] sm:text-xs md:text-sm ml-1">/{TOTAL_LEVELS}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-          {showFinalCount && (
-            <div
-              className="font-black tabular-nums rounded-xl px-4 py-2 border-2 border-amber-400 bg-amber-950/90 text-amber-100 text-2xl sm:text-3xl shadow-lg shadow-amber-900/50 animate-pulse"
-              aria-live="polite"
-            >
-              {Math.ceil(timeLeft)}
-            </div>
-          )}
+        <div className="flex items-center justify-between gap-2 sm:justify-end sm:gap-3 md:gap-4 flex-wrap">
           <button
             type="button"
             onClick={toggleHintMode}
             disabled={hints <= 0 || isPaused || gameState !== 'playing'}
-            className={`font-bold px-3 py-2 rounded-full text-sm sm:text-base border-2 transition-colors ${
-              isHintMode ? 'bg-yellow-500 text-slate-900 border-yellow-500 animate-pulse'
-                : hints > 0 ? 'border-yellow-500 text-yellow-400 hover:bg-yellow-500/20' : 'border-slate-600 text-slate-600'
+            className={`font-bold px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full text-xs sm:text-sm md:text-base border transition-colors shrink-0 ${
+              isHintMode ? 'bg-amber-400 text-slate-900 border-amber-400 animate-pulse'
+                : hints > 0 ? 'border-amber-500/80 text-amber-200 hover:bg-amber-500/15' : 'border-slate-600 text-slate-600'
             }`}
           >
-            🔍 길라잡이: {hints}개
+            <span className="md:hidden">🔍 {hints}</span>
+            <span className="hidden md:inline">🔍 길라잡이 {hints}</span>
           </button>
-          <div className="text-xl sm:text-2xl tracking-widest text-red-500 drop-shadow-md">
+          <div className="text-lg sm:text-xl md:text-2xl tracking-wider text-rose-400 tabular-nums shrink-0">
             {safeLives > 12 ? (
-              <span className="font-bold">♥ ×{safeLives}</span>
+              <span className="font-bold">♥{safeLives}</span>
             ) : (
               <>
                 {'♥'.repeat(safeLives)}
