@@ -3,6 +3,7 @@ import AuthScreen from './components/AuthScreen.jsx';
 import LobbyScreen from './components/LobbyScreen.jsx';
 import PlayScreen from './components/PlayScreen.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
+import MyStatsModal from './components/MyStatsModal.jsx';
 import { useSilentDictionaryGame } from './hooks/useSilentDictionaryGame.js';
 import { getOrCreatePlayerId, setPlayerIdFromAuth, clearPlayerId } from './lib/playerId.js';
 import { safeGetItem, safeSetItem } from './utils/safeStorage.js';
@@ -12,6 +13,7 @@ import {
   fetchUserPackProgress,
   updatePackProgressRemote,
   tryUpdateHallOfFame,
+  recordEligibleLevelClear,
   checkIsAdminUser,
 } from './lib/userProfileService.js';
 
@@ -27,15 +29,18 @@ export default function App() {
   const [packProgress, setPackProgress] = useState({});
   const [phase, setPhase] = useState('lobby');
   const [adminOpen, setAdminOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const onLevelCleared = useCallback(
-    async (packKey, clearedLevel) => {
+    async (packKey, clearedLevel, meta) => {
       if (guestMode || !authUser?.uid) return;
+      if (!meta?.eligible) return;
       try {
         await updatePackProgressRemote(authUser.uid, packKey, clearedLevel);
         const pp = await fetchUserPackProgress(authUser.uid);
         setPackProgress(pp || {});
+        await recordEligibleLevelClear(authUser.uid, packKey, clearedLevel);
         const name =
           safeGetItem('sisort_name', '') ||
           authUser.displayName ||
@@ -128,6 +133,16 @@ export default function App() {
     setPhase('lobby');
   };
 
+  /** 게스트 둘러보기 종료 → 로그인 화면 */
+  const handleGuestExitToLogin = () => {
+    safeSetItem(GUEST_KEY, '0');
+    setGuestMode(false);
+    setPlayerName('');
+    safeSetItem('sisort_name', '');
+    game.resetToLobby();
+    setPhase('lobby');
+  };
+
   if (authUser === undefined && isFirebaseConfigured()) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans">
@@ -176,10 +191,19 @@ export default function App() {
           onStartPlay={() => setPhase('play')}
           isGuest={isGuestUi}
           packProgress={packProgress}
-          onLogout={firebaseOk && authUser ? handleLogout : undefined}
+          onLogout={
+            firebaseOk
+              ? isGuestUi
+                ? handleGuestExitToLogin
+                : handleLogout
+              : undefined
+          }
+          logoutLabel={isGuestUi ? '로그인 화면으로' : '로그아웃'}
           onOpenAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+          onOpenMyStats={authUser && !isGuestUi ? () => setStatsOpen(true) : undefined}
         />
         <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
+        <MyStatsModal open={statsOpen} onClose={() => setStatsOpen(false)} uid={authUser?.uid} />
       </>
     );
   }

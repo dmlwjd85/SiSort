@@ -58,6 +58,7 @@ export default function AdminPanel({ open, onClose }) {
                     <th className="py-2 pr-3">표시(@앞)</th>
                     <th className="py-2 pr-3">생년월일</th>
                     <th className="py-2 pr-3">이메일</th>
+                    <th className="py-2 pr-3 whitespace-nowrap">인정 클리어</th>
                     <th className="py-2 pr-3">접속</th>
                     {packKeys.map((k) => (
                       <th key={k} className="py-2 pr-2 whitespace-nowrap text-[10px] font-normal max-w-[4rem]">
@@ -72,6 +73,9 @@ export default function AdminPanel({ open, onClose }) {
                       <td className="py-2 pr-3">{r.displayName || '—'}</td>
                       <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{r.birthDate || '—'}</td>
                       <td className="py-2 pr-3 text-xs break-all">{r.email || '—'}</td>
+                      <td className="py-2 pr-3 text-xs tabular-nums text-center">
+                        {r.playStats?.eligibleLevelClears != null ? r.playStats.eligibleLevelClears : '—'}
+                      </td>
                       <td className="py-2 pr-3 text-xs whitespace-nowrap">
                         {r.accessCount != null ? `${r.accessCount}회` : '—'}
                         <br />

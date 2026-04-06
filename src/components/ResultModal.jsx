@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import ReviewMeaningQuiz from './ReviewMeaningQuiz.jsx';
+import DraggablePanel from './DraggablePanel.jsx';
 
 /**
  * 레벨 클리어 / 게임 오버 / 최종 승리 모달
@@ -29,9 +30,10 @@ export default function ResultModal({
   if (gameState !== 'level_clear' && gameState !== 'game_over' && gameState !== 'victory') return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-[100] backdrop-blur-md p-4 overflow-y-auto">
+    <div className="pointer-events-none fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-y-auto bg-slate-900/80 p-4 backdrop-blur-sm">
       {gameState === 'level_clear' && (
-        <div className="max-w-2xl w-full flex flex-col items-center">
+        <div className="pointer-events-auto max-w-2xl w-full flex flex-col items-center">
+          <DraggablePanel className="w-full max-w-2xl rounded-2xl border border-slate-600 bg-slate-900/95 p-4 shadow-2xl">
           <div className="text-6xl mb-4">🎉</div>
           <h2 className="text-4xl font-black text-green-400 mb-2">레벨 {level} 클리어!</h2>
           {level % 3 === 0 && <p className="text-yellow-400 font-bold mb-4">보너스! &apos;길라잡이&apos;를 1개 얻었습니다. (3레벨마다)</p>}
@@ -115,36 +117,41 @@ export default function ResultModal({
           >
             {level === TOTAL_LEVELS ? '최종 결과 보기' : '다음 레벨로'}
           </button>
+          </DraggablePanel>
         </div>
       )}
 
       {gameState === 'game_over' && (
-        <div className="text-center">
-          <div className="text-6xl mb-6">💀</div>
-          <h2 className="text-4xl font-black text-red-500 mb-4">게임 오버</h2>
-          <p className="text-slate-300 mb-8">생명력을 모두 잃었습니다. (도달 레벨: {level})</p>
-          <button
-            type="button"
-            onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}
-            className="bg-slate-600 hover:bg-slate-500 text-white px-8 py-3 rounded-full font-bold text-xl transition-colors"
-          >
-            로비로 돌아가기
-          </button>
+        <div className="pointer-events-auto flex justify-center w-full">
+          <DraggablePanel className="max-w-md rounded-2xl border border-slate-600 bg-slate-900/95 p-8 text-center shadow-2xl">
+            <div className="text-6xl mb-6">💀</div>
+            <h2 className="text-4xl font-black text-red-500 mb-4">게임 오버</h2>
+            <p className="text-slate-300 mb-8">생명력을 모두 잃었습니다. (도달 레벨: {level})</p>
+            <button
+              type="button"
+              onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}
+              className="bg-slate-600 hover:bg-slate-500 text-white px-8 py-3 rounded-full font-bold text-xl transition-colors"
+            >
+              로비로 돌아가기
+            </button>
+          </DraggablePanel>
         </div>
       )}
 
       {gameState === 'victory' && (
-        <div className="text-center">
-          <div className="text-6xl mb-6">🏆</div>
-          <h2 className="text-5xl font-black text-yellow-400 mb-4">최종 승리!</h2>
-          <p className="text-slate-300 mb-8">모든 레벨의 사전 순서를 마스터하셨습니다!</p>
-          <button
-            type="button"
-            onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}
-            className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-8 py-3 rounded-full font-bold text-xl transition-colors shadow-lg shadow-yellow-500/50"
-          >
-            로비로
-          </button>
+        <div className="pointer-events-auto flex justify-center w-full">
+          <DraggablePanel className="max-w-md rounded-2xl border border-yellow-600/50 bg-slate-900/95 p-8 text-center shadow-2xl">
+            <div className="text-6xl mb-6">🏆</div>
+            <h2 className="text-5xl font-black text-yellow-400 mb-4">최종 승리!</h2>
+            <p className="text-slate-300 mb-8">모든 레벨의 사전 순서를 마스터하셨습니다!</p>
+            <button
+              type="button"
+              onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}
+              className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-8 py-3 rounded-full font-bold text-xl transition-colors shadow-lg shadow-yellow-500/50"
+            >
+              로비로
+            </button>
+          </DraggablePanel>
         </div>
       )}
 

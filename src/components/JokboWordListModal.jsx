@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import DraggablePanel from './DraggablePanel.jsx';
 
 /**
  * 족보 단어장: body에 포털로 그려 뷰포트 정중앙에 표시 (스크롤·모바일 주소창 영향 완화)
@@ -28,12 +29,14 @@ export default function JokboWordListModal({
   /* animate-fade-in-up 은 translate(-50%)라 flex 중앙 정렬 레이아웃을 깨뜨림 → fade-in만 사용 */
   const overlay = (
     <div
-      className="fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-slate-900/95 p-4 sm:p-6 animate-fade-in"
+      className="pointer-events-none fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-slate-900/70 p-4 sm:p-6 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="jokbo-wordlist-title"
     >
-      <div className="mx-auto w-full max-w-2xl flex flex-col rounded-3xl border-2 border-green-500 bg-slate-800 p-4 sm:p-6 shadow-2xl max-h-[min(85dvh,40rem)] min-w-0">
+      <div className="pointer-events-auto mx-auto flex w-full max-w-2xl justify-center">
+        <DraggablePanel className="flex max-h-[min(85dvh,40rem)] min-w-0 w-full max-w-2xl flex-col rounded-3xl border-2 border-green-500 bg-slate-800 shadow-2xl">
+          <div className="flex flex-col overflow-hidden p-4 sm:p-6">
         <h2
           id="jokbo-wordlist-title"
           className="mb-2 text-center text-3xl font-bold text-green-400"
@@ -68,6 +71,8 @@ export default function JokboWordListModal({
         >
           닫기
         </button>
+          </div>
+        </DraggablePanel>
       </div>
     </div>
   );

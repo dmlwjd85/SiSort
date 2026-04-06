@@ -15,12 +15,11 @@ export default function PlayScreen(props) {
     TOTAL_LEVELS,
     hints,
     isHintMode,
+    hintActorName,
     toggleHintMode,
     lives,
     gameState,
     isPaused,
-    timeLeft,
-    getLevelTime,
     handleRevealAICard,
     lastPlayed,
     sortedPlayedStack,
@@ -31,6 +30,7 @@ export default function PlayScreen(props) {
     userHand,
     handlePlayCard,
     reorderMyHandPrep,
+    canReorderHand,
     guestPlayLocked,
     reviewedWords,
     setReviewedWords,
@@ -55,8 +55,6 @@ export default function PlayScreen(props) {
         lives={lives}
         gameState={gameState}
         isPaused={isPaused}
-        timeLeft={timeLeft}
-        getLevelTime={getLevelTime}
         onLeaveLobby={onLeaveLobby}
       />
 
@@ -75,6 +73,8 @@ export default function PlayScreen(props) {
         prepTimeLeft={prepTimeLeft}
         userHand={userHand}
         mySlotIndex={mySlotIndex}
+        hintActorName={hintActorName}
+        isHintMode={isHintMode}
       />
 
       <div className={gameState === 'level_clear' ? 'max-md:hidden' : ''}>
@@ -86,6 +86,7 @@ export default function PlayScreen(props) {
           isHintMode={isHintMode}
           isPreparing={isPreparing}
           reorderMyHandPrep={reorderMyHandPrep}
+          canReorderHand={canReorderHand}
           guestPlayLocked={guestPlayLocked}
         />
       </div>

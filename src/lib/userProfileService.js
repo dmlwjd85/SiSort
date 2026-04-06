@@ -6,6 +6,8 @@ import {
   getDocs,
   serverTimestamp,
   runTransaction,
+  updateDoc,
+  increment,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase.js';
 
@@ -94,6 +96,32 @@ export async function fetchUserPackProgress(uid) {
   if (!snap.exists()) return {};
   const d = snap.data();
   return typeof d.packProgress === 'object' && d.packProgress ? d.packProgress : {};
+}
+
+/**
+ * 오프라인 1:1 AI 조건으로 레벨 클리어 시 통계 누적(본인 기록·관리자 열람)
+ */
+export async function recordEligibleLevelClear(uid, packKey, level) {
+  const db = getFirestoreDb();
+  if (!db || !uid) return;
+  const ref = doc(db, USERS, uid);
+  await updateDoc(ref, {
+    'playStats.eligibleLevelClears': increment(1),
+    'playStats.lastPackKey': packKey,
+    'playStats.lastLevel': Number(level) || 0,
+    'playStats.lastClearAt': serverTimestamp(),
+  });
+}
+
+/**
+ * @returns {Promise<import('firebase/firestore').DocumentData|null>}
+ */
+export async function fetchUserDocument(uid) {
+  const db = getFirestoreDb();
+  if (!db || !uid) return null;
+  const snap = await getDoc(doc(db, USERS, uid));
+  if (!snap.exists()) return null;
+  return snap.data();
 }
 
 /**

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { buildMeaningChoices } from '../utils/reviewQuiz.js';
+import DraggablePanel from './DraggablePanel.jsx';
 
 /**
  * 레벨 클리어 후 뜻 복습: 정답 포함 3지선다 (화면 중앙 팝업)
@@ -29,12 +30,14 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose }
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
+      className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="review-quiz-title"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-800 p-6 shadow-2xl">
+      <div className="pointer-events-auto w-full max-w-lg flex justify-center">
+        <DraggablePanel className="w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-800 shadow-2xl">
+          <div className="p-6">
         <h2 id="review-quiz-title" className="text-center text-sm font-bold text-slate-400 mb-2">
           뜻 맞추기
         </h2>
@@ -83,6 +86,8 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose }
             </button>
           )}
         </div>
+          </div>
+        </DraggablePanel>
       </div>
     </div>
   );

@@ -25,6 +25,8 @@ export default defineConfig([
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
       'react-hooks/set-state-in-effect': 'off',
+      /* ref.current 갱신은 의도된 패턴인데 네트워크 동기화 콜백에서 오탐이 많음 */
+      'react-hooks/immutability': 'off',
     },
   },
 ])

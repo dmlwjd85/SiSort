@@ -10,6 +10,7 @@ import {
   deleteActionDoc,
   pushPlayAction,
   pushPrepReorderAction,
+  pushHintToggleAction,
   returnRoomToLobby,
   playerSelfLeaveRoom,
   ROOM_MAX,
@@ -68,6 +69,8 @@ export function serializeGame(s) {
     selectedPackKey: s.selectedPackKey,
     /** 슬롯별 손패 표시 순서(카드 id 배열, 랜덤 지급·준비 시간 정렬용) */
     handDisplayOrder: s.handDisplayOrder ?? {},
+    /** 길라잡이를 켠 사람 표시명(온라인 동기화) */
+    hintActorName: s.hintActorName ?? '',
   };
 }
 
@@ -209,6 +212,8 @@ export function useSilentDictionaryGame(options = {}) {
   const [usedWords, setUsedWords] = useState([]);
   const [hints, setHints] = useState(2);
   const [isHintMode, setIsHintMode] = useState(false);
+  /** 길라잡이를 연 플레이어 표시 이름(팝업·동기화) */
+  const [hintActorName, setHintActorName] = useState('');
   const [reviewedWords, setReviewedWords] = useState([]);
   const [showRules, setShowRules] = useState(false);
   const [showWordList, setShowWordList] = useState(false);
@@ -258,7 +263,14 @@ export function useSilentDictionaryGame(options = {}) {
   const prevGameStateForClearRef = useRef('');
   useEffect(() => {
     if (gameState === 'level_clear' && prevGameStateForClearRef.current !== 'level_clear') {
-      onLevelClearedRef.current?.(selectedPackKey, level);
+      const net = networkRef.current;
+      const offline = !net?.db;
+      const mem = sessionMembersRef.current;
+      const humans = mem.filter((m) => m && !m.isAI).length;
+      const ais = mem.filter((m) => m && m.isAI).length;
+      /** 팩 잠금·명예의 전당: 오프라인이고 사람 1·가상 1일 때만 인정 */
+      const eligible = offline && mem.length === 2 && humans === 1 && ais === 1;
+      onLevelClearedRef.current?.(selectedPackKey, level, { eligible });
     }
     prevGameStateForClearRef.current = gameState;
   }, [gameState, level, selectedPackKey]);
@@ -388,6 +400,7 @@ export function useSilentDictionaryGame(options = {}) {
       setUsedWords(Array.isArray(g.usedWords) ? g.usedWords : []);
       setHints(Math.min(99, Math.max(0, Number.isFinite(Number(g.hints)) ? Math.floor(Number(g.hints)) : 2)));
       setIsHintMode(Boolean(g.isHintMode));
+      setHintActorName(typeof g.hintActorName === 'string' ? g.hintActorName : '');
       setReviewedWords(Array.isArray(g.reviewedWords) ? g.reviewedWords : []);
       setIsPreparing(Boolean(g.isPreparing));
       setPrepTimeLeft(
@@ -442,6 +455,7 @@ export function useSilentDictionaryGame(options = {}) {
     setGameState(bundle.gameState);
     setIsPaused(false);
     setIsHintMode(false);
+    setHintActorName('');
     setReviewedWords([]);
     setMessage('');
     setHandDisplayOrder(bundle.handDisplayOrder ?? {});
@@ -530,6 +544,7 @@ export function useSilentDictionaryGame(options = {}) {
       setGameState('playing');
       setIsPaused(false);
       setIsHintMode(false);
+      setHintActorName('');
       setReviewedWords([]);
       setMessage('');
 
@@ -543,6 +558,7 @@ export function useSilentDictionaryGame(options = {}) {
         usedWords: bundle.usedWords,
         hints: 2,
         isHintMode: false,
+        hintActorName: '',
         reviewedWords: [],
         isPreparing: bundle.isPreparing,
         prepTimeLeft: bundle.prepTimeLeft,
@@ -624,6 +640,7 @@ export function useSilentDictionaryGame(options = {}) {
     setUsedWords([]);
     setHints(2);
     setIsHintMode(false);
+    setHintActorName('');
     setReviewedWords([]);
     setIsPreparing(false);
     setPrepTimeLeft(5);
@@ -649,21 +666,38 @@ export function useSilentDictionaryGame(options = {}) {
     resetToLobby();
   }, [resetToLobby]);
 
-  const toggleHintMode = () => {
+  const toggleHintMode = useCallback(() => {
+    const net = networkRef.current;
+    const mem = sessionMembersRef.current[mySlotIndex];
+    const actor = mem?.name || '플레이어';
+    if (net.db && net.roomId && !net.isHost) {
+      if (!isHintMode && hints <= 0) return;
+      pushHintToggleAction(net.db, net.roomId, {
+        turnOn: !isHintMode,
+        playerName: actor,
+        slot: mySlotIndex,
+      }).catch(console.error);
+      return;
+    }
     if (hints > 0 && !isHintMode) {
       setIsHintMode(true);
-      setMessage(`[길라잡이]\n원하는 상대의 뒤집힌 카드를 클릭해 엿보세요!`);
+      setHintActorName(actor);
+      setMessage(
+        `[길라잡이]\n${actor}님이 길라잡이를 켰습니다.\n원하는 상대의 뒤집힌 카드를 클릭해 엿보세요!`
+      );
     } else if (isHintMode) {
       setIsHintMode(false);
+      setHintActorName('');
       setMessage('');
     }
-  };
+  }, [hints, isHintMode, mySlotIndex]);
 
   const handleRevealAICard = (cardId) => {
     if (!isHintMode) return;
     setAllCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, revealed: true } : c)));
     setHints((prev) => prev - 1);
     setIsHintMode(false);
+    setHintActorName('');
     setMessage('');
   };
 
@@ -1012,6 +1046,7 @@ export function useSilentDictionaryGame(options = {}) {
         setUsedWords([]);
         setHints(2);
         setIsHintMode(false);
+        setHintActorName('');
         setReviewedWords([]);
         setIsPreparing(false);
         setPrepTimeLeft(5);
@@ -1039,10 +1074,32 @@ export function useSilentDictionaryGame(options = {}) {
     });
   }, [netRoom, hydrateFromGame, syncNetRef]);
 
-  /** 호스트: 게스트 액션(카드 제출·준비 중 손패 순서) */
+  /** 호스트: 게스트 액션(카드 제출·손패 순서·길라잡이) */
   useEffect(() => {
     if (!netRoom?.db || !netRoom?.roomId || !netRoom.isHost) return undefined;
     return subscribeActions(netRoom.db, netRoom.roomId, async (actionDocId, data) => {
+      if (data.type === 'HINT_TOGGLE') {
+        const turnOn = Boolean(data.turnOn);
+        const playerName = typeof data.playerName === 'string' ? data.playerName : '플레이어';
+        try {
+          await deleteActionDoc(netRoom.db, netRoom.roomId, actionDocId);
+        } catch (e) {
+          console.error(e);
+        }
+        if (turnOn) {
+          setHints((h) => (h > 0 ? h - 1 : h));
+          setIsHintMode(true);
+          setHintActorName(playerName);
+          setMessage(
+            `[길라잡이]\n${playerName}님이 길라잡이를 켰습니다.\n원하는 상대의 뒤집힌 카드를 클릭해 엿보세요!`
+          );
+        } else {
+          setIsHintMode(false);
+          setHintActorName('');
+          setMessage('');
+        }
+        return;
+      }
       if (data.type === 'REORDER_PREP') {
         const { slot, order } = data;
         if (typeof slot === 'number' && Array.isArray(order)) {
@@ -1068,10 +1125,34 @@ export function useSilentDictionaryGame(options = {}) {
     });
   }, [netRoom, mySlotIndex, applyRemotePlay]);
 
-  /** 살펴보기 시간 중에만 손패 순서 변경(온라인 게스트는 호스트로 전달) */
-  const reorderMyHandPrep = useCallback(
+  /** 이번에 사전 순서상 선두 카드를 낼 차례인지(내 손에 그 카드가 있을 때) */
+  const isMyTurnToPlayLead = useMemo(() => {
+    if (gameState !== 'playing' || isPreparing || isPaused || isHintMode) return false;
+    const unplayed = allCards.filter((c) => c.status === 'hand');
+    if (unplayed.length === 0) return false;
+    const ranks = unplayed.map((c) => c.rank).filter((r) => Number.isFinite(r));
+    if (ranks.length === 0) return false;
+    const lowest = Math.min(...ranks);
+    const lead = unplayed.find((c) => c.rank === lowest);
+    if (!lead) return false;
+    return parseSlot(lead.owner) === mySlotIndex;
+  }, [allCards, gameState, isPreparing, isPaused, isHintMode, mySlotIndex]);
+
+  /** 살펴보기 중이거나, 플레이 중이면서 아직 내 선두 차례가 아닐 때 손패 순서 변경 가능 */
+  const canReorderHand = useMemo(() => {
+    if (isHintMode || isPaused) return false;
+    if (isPreparing) return true;
+    if (gameState !== 'playing') return false;
+    const key = slotOwner(mySlotIndex);
+    const cnt = allCards.filter((c) => c.owner === key && c.status === 'hand').length;
+    if (cnt <= 1) return false;
+    return !isMyTurnToPlayLead;
+  }, [isPreparing, gameState, isHintMode, isPaused, allCards, mySlotIndex, isMyTurnToPlayLead]);
+
+  /** 손패 순서 변경(온라인 게스트는 호스트로 전달) */
+  const reorderMyHand = useCallback(
     (orderedIds) => {
-      if (!isPreparing) return;
+      if (!canReorderHand) return;
       const key = slotOwner(mySlotIndex);
       const ids = orderedIds.map((id) => String(id));
       setHandDisplayOrder((prev) => ({ ...prev, [key]: ids }));
@@ -1080,7 +1161,7 @@ export function useSilentDictionaryGame(options = {}) {
         pushPrepReorderAction(net.db, net.roomId, { slot: mySlotIndex, order: ids }).catch(console.error);
       }
     },
-    [isPreparing, mySlotIndex]
+    [canReorderHand, mySlotIndex]
   );
 
   /* 호스트→Firestore: 시간을 0.5초 단위로 반올림해 쓰기 빈도·페이로드 변동을 줄임 (랙 완화) */
@@ -1098,6 +1179,7 @@ export function useSilentDictionaryGame(options = {}) {
       usedWords,
       hints,
       isHintMode,
+      hintActorName,
       reviewedWords,
       isPreparing,
       prepTimeLeft,
@@ -1116,6 +1198,7 @@ export function useSilentDictionaryGame(options = {}) {
     usedWords,
     hints,
     isHintMode,
+    hintActorName,
     reviewedWords,
     isPreparing,
     prepTimeLeft,
@@ -1189,6 +1272,7 @@ export function useSilentDictionaryGame(options = {}) {
     message,
     hints,
     isHintMode,
+    hintActorName,
     reviewedWords,
     setReviewedWords,
     showRules,
@@ -1220,7 +1304,9 @@ export function useSilentDictionaryGame(options = {}) {
     toggleHintMode,
     handleRevealAICard,
     handlePlayCard,
-    reorderMyHandPrep,
+    reorderMyHand,
+    reorderMyHandPrep: reorderMyHand,
+    canReorderHand,
     guestPlayLocked,
     userHand,
     lastPlayed,

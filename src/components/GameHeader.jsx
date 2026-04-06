@@ -14,15 +14,10 @@ export default function GameHeader({
   lives,
   gameState,
   isPaused,
-  timeLeft,
-  getLevelTime,
   onLeaveLobby,
 }) {
-  /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) */
+  /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) — 제한 시간은 로직만 유지하고 화면에는 표시하지 않음 */
   const safeLives = Math.max(0, Math.min(99, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
-  const maxTime = getLevelTime(Math.max(1, Number(level) || 1));
-  const barPct =
-    maxTime > 0 ? Math.min(100, (Math.max(0, Number(timeLeft) || 0) / maxTime) * 100) : 0;
 
   return (
     <div className="bg-slate-800 p-4 shadow-md z-10">
@@ -74,19 +69,6 @@ export default function GameHeader({
               </>
             )}
           </div>
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto mt-4">
-        <div className="flex justify-between text-sm font-bold mb-1">
-          <span className={timeLeft <= 5 ? 'text-red-400 animate-pulse' : 'text-slate-300'}>남은 시간</span>
-          <span className={timeLeft <= 5 ? 'text-red-400 animate-pulse' : 'text-slate-300'}>{Math.max(0, timeLeft).toFixed(1)}초</span>
-        </div>
-        <div className="w-full bg-slate-700 h-3 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-100 ease-linear ${timeLeft <= 5 ? 'bg-red-500' : 'bg-green-400'}`}
-            style={{ width: `${barPct}%` }}
-          />
         </div>
       </div>
     </div>

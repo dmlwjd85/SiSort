@@ -1,4 +1,5 @@
 import React from 'react';
+import DraggablePanel from './DraggablePanel.jsx';
 
 const OPPONENT_STYLES = [
   'bg-purple-900/50 border-purple-500 text-purple-200',
@@ -29,6 +30,7 @@ export default function PlayArea({
   prepTimeLeft,
   userHand,
   mySlotIndex,
+  hintActorName = '',
 }) {
   /* 레벨 클리어 복습 단계: 모바일에서 제출 스택·손패·중앙 카드 등이 보이면 퀴즈 정답이 노출됨 → 영역 전체 숨김 */
   const hideAllDuringMobileReview =
@@ -125,18 +127,46 @@ export default function PlayArea({
       </div>
 
       {message && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 border-2 border-yellow-500 text-white px-8 py-6 rounded-2xl text-xl font-bold shadow-2xl z-50 text-center whitespace-pre-line animate-fade-in-up">
-          {message}
+        <div
+          className="pointer-events-none fixed inset-0 z-[55] flex items-center justify-center p-4"
+          aria-live="polite"
+        >
+          <div className="pointer-events-auto">
+            <DraggablePanel className="max-w-lg rounded-2xl border-2 border-yellow-500 bg-slate-900/95 shadow-2xl">
+              <div className="px-6 py-4 text-center text-lg font-bold text-white whitespace-pre-line">
+                {message}
+              </div>
+            </DraggablePanel>
+          </div>
+        </div>
+      )}
+
+      {isHintMode && hintActorName && (
+        <div className="pointer-events-none fixed inset-0 z-[56] flex items-start justify-center pt-20 p-2">
+          <div className="pointer-events-auto">
+            <DraggablePanel className="rounded-xl border border-amber-400 bg-amber-950/95 px-4 py-3 shadow-xl">
+              <p className="text-center text-sm font-bold text-amber-100">
+                🔍 <strong>{hintActorName}</strong>님이 길라잡이를 사용 중입니다.
+              </p>
+            </DraggablePanel>
+          </div>
         </div>
       )}
 
       {isPreparing && (
-        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md rounded-xl">
-          <h2 className="text-2xl md:text-3xl font-bold text-yellow-400 mb-8 text-center px-4 break-keep">
-            내 카드를 확인하고 순서를 예상하세요!
-          </h2>
+        <div className="pointer-events-none absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/75 backdrop-blur-md rounded-xl">
+          <div className="pointer-events-auto max-w-xl px-2">
+            <DraggablePanel className="rounded-xl border border-yellow-600/40 bg-slate-900/95 p-4 shadow-xl">
+              <h2 className="text-xl md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
+                내 카드를 확인하고 순서를 예상하세요!
+              </h2>
+              <p className="text-center text-[11px] text-slate-500 mb-4">
+                창을 드래그해 둘러볼 수 있습니다. 카드는 아래 손패에서 정렬하세요.
+              </p>
+            </DraggablePanel>
+          </div>
 
-          <div className="flex justify-center gap-4 flex-wrap mb-10 w-full px-4">
+          <div className="pointer-events-none flex justify-center gap-4 flex-wrap mb-6 mt-4 w-full px-4">
             {userHand.map((card) => (
               <div
                 key={card.id}
@@ -148,7 +178,7 @@ export default function PlayArea({
             ))}
           </div>
 
-          <div className="text-7xl sm:text-8xl font-black text-white drop-shadow-2xl">{prepTimeLeft}</div>
+          <div className="pointer-events-none text-7xl sm:text-8xl font-black text-white drop-shadow-2xl">{prepTimeLeft}</div>
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { doc, collection, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import DraggablePanel from './DraggablePanel.jsx';
 import JokboWordListModal from './JokboWordListModal.jsx';
 import { getFirestoreDb, isFirebaseConfigured, ensureFirebaseAuth } from '../lib/firebase.js';
 import {
@@ -28,7 +29,9 @@ export default function LobbyScreen({
   isGuest = false,
   packProgress = {},
   onLogout,
+  logoutLabel = '로그아웃',
   onOpenAdmin,
+  onOpenMyStats,
 }) {
   const {
     PACK_DATA,
@@ -88,10 +91,18 @@ export default function LobbyScreen({
 
   const roomMax = mode === 'online' ? ONLINE_ROOM_MAX : ROOM_MAX;
 
-  const unlockedPackKeys = useMemo(
-    () => getUnlockedPackKeys({ isGuest, packProgress }),
-    [isGuest, packProgress]
-  );
+  /** 온라인 방에 연결된 경우 방장이 해금한 팩 기준(문서의 hostPackProgress) */
+  const unlockedPackKeys = useMemo(() => {
+    if (
+      mode === 'online' &&
+      roomId &&
+      remoteRoom?.hostPackProgress &&
+      typeof remoteRoom.hostPackProgress === 'object'
+    ) {
+      return getUnlockedPackKeys({ isGuest: false, packProgress: remoteRoom.hostPackProgress });
+    }
+    return getUnlockedPackKeys({ isGuest, packProgress });
+  }, [isGuest, packProgress, mode, roomId, remoteRoom?.hostPackProgress]);
 
   useEffect(() => {
     if (!unlockedPackKeys.has(selectedPackKey)) {
@@ -110,6 +121,19 @@ export default function LobbyScreen({
   useEffect(() => {
     setNameDraft(playerName);
   }, [playerName]);
+
+  /** 온라인 방장: 내 팩 진행도를 방 문서에 두어 참가자도 동일 해금 팩 선택 가능(변경 시에만 쓰기) */
+  useEffect(() => {
+    if (!db || !roomId || !isHost || mode !== 'online' || !remoteRoom) return;
+    const prev = remoteRoom.hostPackProgress && typeof remoteRoom.hostPackProgress === 'object'
+      ? remoteRoom.hostPackProgress
+      : {};
+    if (JSON.stringify(prev) === JSON.stringify(packProgress || {})) return;
+    updateDoc(doc(db, 'rooms', roomId), {
+      hostPackProgress: packProgress,
+      updatedAt: serverTimestamp(),
+    }).catch(() => {});
+  }, [db, roomId, isHost, mode, remoteRoom, packProgress]);
 
   /** 명예의 전당 실시간 구독(로그인 여부와 무관하게 읽기 전용) */
   useEffect(() => {
@@ -295,6 +319,7 @@ export default function LobbyScreen({
         hostId: playerId,
         packKey: selectedPackKey,
         members: localMembers,
+        hostPackProgress: packProgress,
       });
       setRoomId(code);
       setIsHost(true);
@@ -396,8 +421,8 @@ export default function LobbyScreen({
 
   const handleSaveDisplayName = async () => {
     const t = nameDraft.trim();
-    if (!t) {
-      setErr('이름을 입력해 주세요.');
+    if (t.length < 2) {
+      setErr('표시 이름은 2자 이상으로, 반드시 본인을 알아볼 수 있는 이름을 넣어 주세요.');
       return;
     }
     safeSetItem('sisort_name', t);
@@ -424,6 +449,15 @@ export default function LobbyScreen({
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center p-4 text-white font-sans pb-24">
       <div className="w-full max-w-2xl flex flex-wrap justify-end gap-2 mt-2">
+        {onOpenMyStats && (
+          <button
+            type="button"
+            onClick={onOpenMyStats}
+            className="rounded-lg bg-sky-900/80 border border-sky-600 px-3 py-1.5 text-xs font-bold text-sky-100"
+          >
+            내 기록
+          </button>
+        )}
         {onOpenAdmin && (
           <button
             type="button"
@@ -439,7 +473,7 @@ export default function LobbyScreen({
             onClick={() => void onLogout()}
             className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-slate-200"
           >
-            로그아웃
+            {logoutLabel}
           </button>
         )}
       </div>
@@ -467,7 +501,8 @@ export default function LobbyScreen({
             명예의 전당
           </h2>
           <p className="text-[11px] text-amber-200/70 text-center mb-3 break-keep">
-            각 팩에서 가장 높은 레벨을 달성한 분의 표시 이름이 올라갑니다. 동점이면 먼저 기록을 세운 분을 기립니다.
+            각 팩에서 가장 높은 레벨을 달성한 분의 표시 이름이 올라갑니다. 동점이면 먼저 기록을 세운 분을 기립니다.{' '}
+            <strong className="text-amber-100">오프라인에서 가상 플레이어 1명과 한 판</strong>으로 달성한 기록만 반영됩니다.
           </p>
           <ul className="space-y-1.5 max-h-48 overflow-y-auto text-sm pr-1">
             {PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]).map((key) => {
@@ -582,8 +617,14 @@ export default function LobbyScreen({
       <div className="w-full max-w-2xl bg-slate-800 rounded-2xl border border-slate-700 p-4 mb-4">
         <h3 className="text-yellow-400 font-bold mb-2">단어 수준</h3>
         <p className="text-[11px] text-slate-500 mb-2 break-keep">
-          {!isGuest && '회원: 유치원 팩부터 시작합니다. 이전 팩을 8레벨까지 클리어하면 다음 팩이 열립니다.'}
+          {!isGuest &&
+            '회원: 유치원 팩부터 시작합니다. 이전 팩을 8레벨까지 클리어하면 다음 팩이 열립니다. 팩 잠금·명예의 전당·내 기록은 오프라인에서 가상 플레이어 1명만 둔 방(나+AI)으로 클리어한 경우만 인정됩니다.'}
         </p>
+        {mode === 'online' && roomId && (
+          <p className="text-[11px] text-emerald-300/90 mb-2 break-keep">
+            온라인: 방장 계정으로 해금된 단어 수준은 이 방에 참가한 모두가 선택할 수 있습니다.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {Object.entries(PACK_DATA).map(([key, pack]) => {
             const locked = !unlockedPackKeys.has(key);
@@ -724,15 +765,22 @@ export default function LobbyScreen({
       )}
 
       {showRules && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-slate-800 max-w-lg w-full rounded-2xl border border-slate-600 p-6 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-yellow-400 mb-4">게임 방법</h2>
-            <ul className="text-slate-300 space-y-2 text-sm list-disc pl-5">
-              <li>모든 플레이어는 카드를 받고, 가나다순으로 내야 합니다.</li>
-              <li>AI는 자동으로 타이밍에 맞춰 냅니다.</li>
-              <li>온라인에서는 호스트가 타이머·AI를 맞춥니다.</li>
-            </ul>
-            <button type="button" onClick={() => setShowRules(false)} className="mt-6 w-full rounded-xl bg-blue-600 py-3 font-bold">닫기</button>
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="pointer-events-auto max-h-[85vh] w-full max-w-lg">
+            <DraggablePanel className="max-h-[80vh] overflow-hidden rounded-2xl border border-slate-600 bg-slate-800 shadow-2xl">
+              <div className="max-h-[calc(80vh-2rem)] overflow-y-auto p-6">
+                <h2 className="text-2xl font-bold text-yellow-400 mb-4">게임 방법</h2>
+                <ul className="text-slate-300 space-y-2 text-sm list-disc pl-5">
+                  <li>모든 플레이어는 카드를 받고, 가나다순으로 내야 합니다.</li>
+                  <li>AI는 자동으로 타이밍에 맞춰 냅니다.</li>
+                  <li>온라인에서는 호스트가 타이머·AI를 맞춥니다.</li>
+                  <li>살펴보기·대기 중에는 손패를 드래그해 순서를 맞출 수 있습니다. 사전 순과 다르면 빨간 테두리로 표시됩니다.</li>
+                </ul>
+                <button type="button" onClick={() => setShowRules(false)} className="mt-6 w-full rounded-xl bg-blue-600 py-3 font-bold">
+                  닫기
+                </button>
+              </div>
+            </DraggablePanel>
           </div>
         </div>
       )}
@@ -745,10 +793,15 @@ export default function LobbyScreen({
       />
 
       {showNameEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-slate-800 max-w-md w-full rounded-2xl border border-slate-600 p-6">
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="pointer-events-auto w-full max-w-md">
+            <DraggablePanel className="rounded-2xl border border-slate-600 bg-slate-800 shadow-2xl">
+              <div className="p-6">
             <h2 className="text-xl font-bold text-sky-300 mb-3">표시 이름</h2>
-            <p className="text-slate-400 text-xs mb-2">게임에 보이는 이름입니다. 온라인 방에 있으면 다른 참가자에게도 반영됩니다.</p>
+            <p className="text-slate-400 text-xs mb-2 break-keep">
+              게임·명예의 전당·길라잡이 안내에 쓰이므로, <strong className="text-sky-200">반드시 본인을 알아볼 수 있는 이름</strong>
+              을 2자 이상 넣어 주세요. 온라인 방에 있으면 다른 참가자에게도 반영됩니다.
+            </p>
             <input
               value={nameDraft}
               onChange={(e) => setNameDraft(e.target.value)}
@@ -772,6 +825,8 @@ export default function LobbyScreen({
                 저장
               </button>
             </div>
+              </div>
+            </DraggablePanel>
           </div>
         </div>
       )}

@@ -20,7 +20,10 @@ export const ONLINE_ROOM_MAX = 4;
  * 방 생성(로비) — 같은 roomId 문서가 이미 있으면 생성하지 않음(merge로 기존 방 덮어쓰기 방지)
  * @param {import('firebase/firestore').Firestore} db
  */
-export async function createRoomDoc(db, roomId, { hostId, packKey, members }) {
+/**
+ * @param {{ hostId: string, packKey: string, members: unknown[], hostPackProgress?: Record<string, number> }} payload
+ */
+export async function createRoomDoc(db, roomId, { hostId, packKey, members, hostPackProgress }) {
   const ref = doc(db, 'rooms', roomId);
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
@@ -30,6 +33,7 @@ export async function createRoomDoc(db, roomId, { hostId, packKey, members }) {
     transaction.set(ref, {
       hostId,
       packKey,
+      hostPackProgress: hostPackProgress && typeof hostPackProgress === 'object' ? hostPackProgress : {},
       phase: 'lobby',
       members,
       game: null,
@@ -237,11 +241,23 @@ export async function pushPlayAction(db, roomId, { cardId, slot }) {
 }
 
 /** 비호스트 → 호스트: 살펴보기 시간 중 손패 순서만 변경 */
+/** 비호스트 → 호스트: 손패 순서 변경(살펴보기·대기 중 등) */
 export async function pushPrepReorderAction(db, roomId, { slot, order }) {
   await addDoc(collection(db, 'rooms', roomId, 'actions'), {
     type: 'REORDER_PREP',
     slot,
     order,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** 비호스트 → 호스트: 길라잡이 모드 켜기/끄기 */
+export async function pushHintToggleAction(db, roomId, { slot, turnOn, playerName }) {
+  await addDoc(collection(db, 'rooms', roomId, 'actions'), {
+    type: 'HINT_TOGGLE',
+    slot,
+    turnOn: Boolean(turnOn),
+    playerName: typeof playerName === 'string' ? playerName : '',
     createdAt: serverTimestamp(),
   });
 }

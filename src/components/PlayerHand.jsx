@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
 /**
  * 하단 손패: 사용자 카드 클릭으로 제출
- * 살펴보기(준비) 시간에만 드래그로 순서 변경 가능
+ * 살펴보기·대기(선두 차례 아님) 중 드래그로 순서 변경
  */
 export default function PlayerHand({
   userHand,
@@ -12,11 +12,13 @@ export default function PlayerHand({
   isHintMode,
   isPreparing,
   reorderMyHandPrep,
+  canReorderHand = false,
   guestPlayLocked,
 }) {
   const [dragFrom, setDragFrom] = useState(null);
 
-  const canReorder = Boolean(isPreparing && reorderMyHandPrep && userHand.length > 1);
+  const reorderFn = reorderMyHandPrep;
+  const canReorder = Boolean(canReorderHand && reorderFn && userHand.length > 1);
 
   const applyReorder = (fromIdx, toIdx) => {
     if (!canReorder || fromIdx === toIdx) return;
@@ -24,8 +26,19 @@ export default function PlayerHand({
     const next = [...ids];
     const [removed] = next.splice(fromIdx, 1);
     next.splice(toIdx, 0, removed);
-    reorderMyHandPrep(next);
+    reorderFn(next);
   };
+
+  /** 사전 순(rank)과 화면 순이 다르면 해당 카드에 빨간 테두리 */
+  const wrongOrderIds = useMemo(() => {
+    if (userHand.length <= 1) return new Set();
+    const rankSorted = [...userHand].sort((a, b) => a.rank - b.rank);
+    const bad = new Set();
+    userHand.forEach((c, i) => {
+      if (rankSorted[i]?.id !== c.id) bad.add(c.id);
+    });
+    return bad;
+  }, [userHand]);
 
   return (
     <div className="bg-slate-800 p-4 sm:p-6 shadow-up z-10 border-t border-slate-700 pb-safe shrink-0">
@@ -40,10 +53,22 @@ export default function PlayerHand({
                 살펴보기 시간: 카드를 드래그해 순서만 바꿀 수 있습니다.
               </span>
             )}
+            {!isPreparing && canReorder && (
+              <span className="text-emerald-300/95 text-xs">
+                대기 중(아직 내 선두 차례가 아닐 때)에도 드래그로 순서를 맞출 수 있습니다.
+              </span>
+            )}
+            {userHand.length > 1 && (
+              <span className="text-rose-300/90 text-[11px]">
+                빨간 테두리: 지금 순서가 사전 순서와 다릅니다.
+              </span>
+            )}
           </div>
         </div>
         <div className="flex justify-center gap-3 flex-wrap">
-          {userHand.map((card, index) => (
+          {userHand.map((card, index) => {
+            const outOfOrder = wrongOrderIds.has(card.id);
+            return (
             <button
               key={card.id}
               type="button"
@@ -77,12 +102,15 @@ export default function PlayerHand({
               }
               className={`w-28 h-40 sm:w-32 sm:h-44 bg-white rounded-xl shadow-lg flex flex-col items-center justify-center p-3 text-slate-800 transition-transform hover:-translate-y-4 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-50 disabled:hover:translate-y-0 ${
                 canReorder ? 'cursor-grab active:cursor-grabbing' : ''
-              } ${dragFrom === index ? 'ring-2 ring-amber-400 opacity-90' : ''}`}
+              } ${dragFrom === index ? 'ring-2 ring-amber-400 opacity-90' : ''} ${
+                outOfOrder ? 'ring-2 ring-red-500 ring-offset-2 ring-offset-slate-800' : ''
+              }`}
             >
               <span className="text-2xl sm:text-3xl font-black mb-2">{card.word}</span>
               <span className="text-xs text-slate-600 text-center leading-tight break-keep">{card.desc}</span>
             </button>
-          ))}
+            );
+          })}
           {userHand.length === 0 && (
             <div className="h-32 flex items-center justify-center w-full text-slate-500 italic">카드를 모두 냈습니다!</div>
           )}
