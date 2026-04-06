@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { shuffleArray, getLevelTime, assignDictionaryRanks, dedupeWordEntriesByWord } from '../utils/helpers.js';
-import { pickWordsBalancedByChoseong } from '../utils/wordPick.js';
+import { pickWordsBalancedByChoseong, hangulChoseongIndex } from '../utils/wordPick.js';
 import {
   startRoomGame,
   updateRoomGame,
@@ -30,6 +30,19 @@ function slotOwner(i) {
 function parseSlot(owner) {
   const n = parseInt(String(owner).replace(/^s/, ''), 10);
   return Number.isNaN(n) ? -1 : n;
+}
+
+/**
+ * AI는 학생 손패를 모른다고 가정하고, 전역 targetTime 대신
+ * 이 카드의 첫 글자 초성(ㄱ~ㅎ, 0~18)만으로 남은 시간 구간 안에서 지연(초)을 둔다.
+ */
+function aiPlayDelayFromChoseong(remainingSec, choseongIdx) {
+  const g =
+    Number.isFinite(choseongIdx) && choseongIdx >= 0 && choseongIdx <= 18 ? choseongIdx : 9;
+  const t = Math.max(0.05, remainingSec);
+  /* ㄱ에 가까울수록 짧게, ㅎ에 가까울수록 길게 — 남은 시간에 선형 비례 */
+  const frac = 0.08 + (0.84 * (g + 1)) / 19;
+  return t * frac;
 }
 
 export function serializeGame(s) {
@@ -154,6 +167,9 @@ export function useSilentDictionaryGame() {
   const aiCooldownAfterHumanUntilRef = useRef(0);
   /** 손패가 한 장만 남았을 때 AI 제출 시각(targetTime 무시, 남은 시간 내 랜덤) */
   const aiLastCardPlayAtRef = useRef(0);
+  /** AI 다음 제출 벽시각(ms). 학생 패를 모른다고 가정해 전역 targetTime 대신 초성·남은 시간으로만 스케줄 */
+  const aiPlayAtWallRef = useRef(0);
+  const aiPlayScheduledCardIdRef = useRef('');
   const [playedStack, setPlayedStack] = useState([]);
 
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
@@ -287,6 +303,8 @@ export function useSilentDictionaryGame() {
     failedRoundRecoveryRef.current = false;
     aiCooldownAfterHumanUntilRef.current = 0;
     aiLastCardPlayAtRef.current = 0;
+    aiPlayAtWallRef.current = 0;
+    aiPlayScheduledCardIdRef.current = '';
     setAllCards(bundle.allCards);
     setPlayedStack(bundle.playedStack);
     setLevel(bundle.level);
@@ -357,6 +375,8 @@ export function useSilentDictionaryGame() {
       failedRoundRecoveryRef.current = false;
       aiCooldownAfterHumanUntilRef.current = 0;
       aiLastCardPlayAtRef.current = 0;
+      aiPlayAtWallRef.current = 0;
+      aiPlayScheduledCardIdRef.current = '';
       syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
       setSessionMembers(members);
       setMySlotIndex(mySlot);
@@ -526,6 +546,8 @@ export function useSilentDictionaryGame() {
         const mem = sessionMembersRef.current[siPlay];
         if (mem && !mem.isAI) {
           aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
+          aiPlayScheduledCardIdRef.current = '';
+          aiPlayAtWallRef.current = 0;
         }
         setAllCards((prev) => prev.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c)));
         setPlayedStack((prev) => [...prev, cardToPlay]);
@@ -559,6 +581,8 @@ export function useSilentDictionaryGame() {
           const m = sessionMembersRef.current[fromSlot];
           if (m && !m.isAI) {
             aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
+            aiPlayScheduledCardIdRef.current = '';
+            aiPlayAtWallRef.current = 0;
           }
           const next = prevCards.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c));
           setPlayedStack((prev) => [...prev, cardToPlay]);
@@ -621,6 +645,9 @@ export function useSilentDictionaryGame() {
 
       if (unplayedCards.length !== 1) {
         aiLastCardPlayAtRef.current = 0;
+      } else {
+        aiPlayScheduledCardIdRef.current = '';
+        aiPlayAtWallRef.current = 0;
       }
       if (Date.now() < aiCooldownAfterHumanUntilRef.current) return;
 
@@ -646,9 +673,18 @@ export function useSilentDictionaryGame() {
         return;
       }
 
-      /* 다음으로 낼 카드만 타이밍에 맞춰 제출 (항상 정답 카드만 선택) */
-      if (!(cardToPlay.targetTime >= currentTime)) return;
+      /* AI: 학생 손패를 모른다고 가정 — 전역 rank 기반 targetTime으로 연속 제출하지 않고,
+       * 이 카드 초성(ㄱ~ㅎ)과 남은 시간만으로 벽시계 지연을 잡는다. */
+      if (aiPlayScheduledCardIdRef.current !== cardToPlay.id) {
+        const g = hangulChoseongIndex(cardToPlay.word?.[0] ?? '');
+        const delaySec = aiPlayDelayFromChoseong(currentTime, g);
+        aiPlayAtWallRef.current = Date.now() + delaySec * 1000;
+        aiPlayScheduledCardIdRef.current = cardToPlay.id;
+        return;
+      }
+      if (Date.now() < aiPlayAtWallRef.current) return;
 
+      aiPlayScheduledCardIdRef.current = '';
       handlePlayCard(cardToPlay);
     },
     [allCards, handlePlayCard]
