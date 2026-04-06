@@ -16,6 +16,10 @@ import {
   recordEligibleLevelClear,
   fetchAdminCapabilities,
   isUserBanned,
+  peekAdminCapabilitiesSync,
+  readCachedUserPackState,
+  writeCachedUserPackState,
+  clearCachedUserPackState,
 } from './lib/userProfileService.js';
 
 const GUEST_KEY = 'sisort_guest';
@@ -52,6 +56,7 @@ export default function App() {
         const st = await fetchUserPackState(authUser.uid);
         setPackProgress(st.packProgress || {});
         setPackUnlockBonus(st.packUnlockBonus || []);
+        writeCachedUserPackState(authUser.uid, st);
         await recordEligibleLevelClear(authUser.uid, packKey, clearedLevel);
         const name =
           safeGetItem('sisort_name', '') ||
@@ -139,24 +144,38 @@ export default function App() {
     setGuestMode(false);
     safeSetItem(GUEST_KEY, '0');
 
+    /* 세션 캐시 + 이메일 기반 관리자 — Firestore 응답 전에도 팩 잠금·관리 버튼이 비활성처럼 보이지 않게 */
+    const cached = readCachedUserPackState(authUser.uid);
+    if (cached) {
+      setPackProgress(cached.packProgress);
+      setPackUnlockBonus(cached.packUnlockBonus);
+    }
+    const peek = peekAdminCapabilitiesSync(authUser);
+    if (peek) setAdminCaps(peek);
+
     let cancelled = false;
     (async () => {
       try {
-        const st = await fetchUserPackState(authUser.uid);
+        const [st, caps] = await Promise.all([
+          fetchUserPackState(authUser.uid),
+          fetchAdminCapabilities(authUser),
+        ]);
         if (cancelled) return;
         setPackProgress(st.packProgress || {});
         setPackUnlockBonus(st.packUnlockBonus || []);
+        writeCachedUserPackState(authUser.uid, st);
         const name = authUser.displayName || authUser.email?.split('@')[0] || '';
         if (name) {
           safeSetItem('sisort_name', name);
           setPlayerName(name);
         }
-        const caps = await fetchAdminCapabilities(authUser);
-        if (cancelled) return;
         setAdminCaps(caps);
       } catch (e) {
         console.error('[authUser profile]', e);
-        if (!cancelled) setAdminCaps(defaultAdminCaps);
+        if (!cancelled) {
+          const p = peekAdminCapabilitiesSync(authUser);
+          setAdminCaps(p ?? defaultAdminCaps);
+        }
       }
     })();
 
@@ -175,11 +194,13 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    const uidBefore = authUser?.uid;
     try {
       await logoutFirebase();
     } catch (e) {
       console.error(e);
     }
+    if (uidBefore) clearCachedUserPackState(uidBefore);
     clearPlayerId();
     setGuestMode(false);
     safeSetItem(GUEST_KEY, '0');

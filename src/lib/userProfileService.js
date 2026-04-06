@@ -153,6 +153,73 @@ export async function fetchUserDocument(uid) {
 const MASTER_DISPLAY_NAME = '정의정';
 const MASTER_BIRTH = '19851125';
 
+/** 마스터·환경변수 지정 관리자 — Firestore 없이 동일 권한 */
+const FULL_SYNC_ADMIN_CAPS = {
+  isAdmin: true,
+  master: true,
+  viewRecords: true,
+  unlockMembers: true,
+  showAdminPanel: true,
+};
+
+/**
+ * Firestore 조회 전에 이메일·환경변수만으로 관리자 여부를 알 수 있으면 권한 객체 반환, 아니면 null
+ * (로그인 직후 UI가 잠금·비활성처럼 보이지 않게 App에서 선반영용)
+ */
+export function peekAdminCapabilitiesSync(user) {
+  if (!user?.uid) return null;
+  if (user.email && isMasterAccountEmail(user.email)) return { ...FULL_SYNC_ADMIN_CAPS };
+  const env = import.meta.env.VITE_ADMIN_EMAILS || '';
+  const emails = env
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (user.email && emails.includes(user.email.toLowerCase())) return { ...FULL_SYNC_ADMIN_CAPS };
+  return null;
+}
+
+/** 세션에 저장해 재방문 시 팩 잠금 UI가 비지 않게 함 */
+const PACK_STATE_SESSION_PREFIX = 'sisort_pack_state_v1:';
+
+export function readCachedUserPackState(uid) {
+  if (!uid || typeof sessionStorage === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(PACK_STATE_SESSION_PREFIX + uid);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return null;
+    const packProgress = typeof o.packProgress === 'object' && o.packProgress ? o.packProgress : {};
+    const packUnlockBonus = Array.isArray(o.packUnlockBonus) ? o.packUnlockBonus : [];
+    return { packProgress, packUnlockBonus };
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedUserPackState(uid, state) {
+  if (!uid || !state || typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(
+      PACK_STATE_SESSION_PREFIX + uid,
+      JSON.stringify({
+        packProgress: state.packProgress || {},
+        packUnlockBonus: Array.isArray(state.packUnlockBonus) ? state.packUnlockBonus : [],
+      })
+    );
+  } catch {
+    /* 저장소 비허용 등 */
+  }
+}
+
+export function clearCachedUserPackState(uid) {
+  if (!uid || typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.removeItem(PACK_STATE_SESSION_PREFIX + uid);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function fetchAdminCapabilities(user) {
   const none = {
     isAdmin: false,
@@ -165,13 +232,7 @@ export async function fetchAdminCapabilities(user) {
 
   /** 마스터 전용 로그인 이메일(master_6~7자리@…) — Firestore admins 와 동일한 전 권한 */
   if (user.email && isMasterAccountEmail(user.email)) {
-    return {
-      isAdmin: true,
-      master: true,
-      viewRecords: true,
-      unlockMembers: true,
-      showAdminPanel: true,
-    };
+    return { ...FULL_SYNC_ADMIN_CAPS };
   }
 
   const env = import.meta.env.VITE_ADMIN_EMAILS || '';
@@ -180,13 +241,7 @@ export async function fetchAdminCapabilities(user) {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
   if (user.email && emails.includes(user.email.toLowerCase())) {
-    return {
-      isAdmin: true,
-      master: true,
-      viewRecords: true,
-      unlockMembers: true,
-      showAdminPanel: true,
-    };
+    return { ...FULL_SYNC_ADMIN_CAPS };
   }
 
   const db = getFirestoreDb();
