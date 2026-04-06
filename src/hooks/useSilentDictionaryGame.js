@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { shuffleArray, getLevelTime } from '../utils/helpers.js';
+import { pickWordsBalancedByChoseong } from '../utils/wordPick.js';
 import {
   startRoomGame,
   updateRoomGame,
@@ -63,8 +64,7 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     availableWords = wordPool;
   }
 
-  const shuffledDB = shuffleArray(availableWords);
-  const selectedWords = shuffledDB.slice(0, totalCardsNeeded);
+  const selectedWords = pickWordsBalancedByChoseong(availableWords, totalCardsNeeded);
 
   if (keepUsedWords) {
     usedWordsNext = [...usedWordsBefore, ...selectedWords.map((w) => w.word)];
@@ -385,7 +385,7 @@ export function useSilentDictionaryGame() {
 
         if (unplayedCards.length === 1) {
           setIsPaused(true);
-          if (level % 2 === 0) setHints((h) => h + 1);
+          if (level % 3 === 0) setHints((h) => h + 1);
           setGameState('level_clear');
         }
       } else {
@@ -411,7 +411,7 @@ export function useSilentDictionaryGame() {
           setPlayedStack((prev) => [...prev, cardToPlay]);
           if (unplayedCards.length === 1) {
             setIsPaused(true);
-            if (level % 2 === 0) setHints((h) => h + 1);
+            if (level % 3 === 0) setHints((h) => h + 1);
             setGameState('level_clear');
           }
           return next;
@@ -442,16 +442,19 @@ export function useSilentDictionaryGame() {
   const checkAiPlays = useCallback(
     (currentTime) => {
       const members = sessionMembersRef.current;
-      const aiCardsToPlay = allCards.filter((c) => {
-        if (c.status !== 'hand') return false;
-        const si = parseSlot(c.owner);
-        if (si < 0 || !members[si]) return false;
-        if (!members[si].isAI) return false;
-        return c.targetTime >= currentTime;
-      });
-      if (aiCardsToPlay.length > 0) {
-        handlePlayCard(aiCardsToPlay[0]);
-      }
+      const unplayedCards = allCards.filter((c) => c.status === 'hand');
+      if (unplayedCards.length === 0) return;
+
+      const lowestRank = Math.min(...unplayedCards.map((c) => c.rank));
+      const cardToPlay = unplayedCards.find((c) => c.rank === lowestRank);
+      if (!cardToPlay) return;
+
+      const si = parseSlot(cardToPlay.owner);
+      if (si < 0 || !members[si] || !members[si].isAI) return;
+      /* 다음으로 낼 카드만 타이밍에 맞춰 제출 (항상 정답 카드만 선택) */
+      if (!(cardToPlay.targetTime >= currentTime)) return;
+
+      handlePlayCard(cardToPlay);
     },
     [allCards, handlePlayCard]
   );

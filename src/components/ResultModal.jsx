@@ -22,7 +22,7 @@ export default function ResultModal({
         <div className="max-w-2xl w-full flex flex-col items-center">
           <div className="text-6xl mb-4">🎉</div>
           <h2 className="text-4xl font-black text-green-400 mb-2">레벨 {level} 클리어!</h2>
-          {level % 2 === 0 && <p className="text-yellow-400 font-bold mb-4">보너스! &apos;길라잡이&apos;를 1개 얻었습니다.</p>}
+          {level % 3 === 0 && <p className="text-yellow-400 font-bold mb-4">보너스! &apos;길라잡이&apos;를 1개 얻었습니다. (3레벨마다)</p>}
 
           <div className="w-full bg-slate-800 rounded-xl p-4 mb-6 max-h-[45vh] overflow-y-auto border border-slate-600">
             <h3 className="text-lg font-bold text-white mb-2 text-center border-b border-slate-700 pb-2">이번 레벨 완성 사전</h3>

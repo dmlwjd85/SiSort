@@ -1,12 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 데모용: 배포 전 반드시 인증·검증 규칙으로 강화하세요.
+    // 익명 로그인 후에만 쓰기 허용 (클라이언트에서 ensureFirebaseAuth 호출)
     match /rooms/{roomId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if request.auth != null;
       match /actions/{actionId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if request.auth != null;
       }
     }
   }

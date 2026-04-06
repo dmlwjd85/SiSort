@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { doc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import JokboWordListModal from './JokboWordListModal.jsx';
-import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase.js';
+import { getFirestoreDb, isFirebaseConfigured, ensureFirebaseAuth } from '../lib/firebase.js';
 import {
   createRoomDoc,
   joinRoomDoc,
@@ -121,6 +121,7 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
+      await ensureFirebaseAuth();
       await updateRoomMembers(db, roomId, next, hostPlayerId);
     } catch (e) {
       setErr('AI 추가 실패');
@@ -137,6 +138,7 @@ export default function LobbyScreen({
     const next = members.filter((_, i) => i !== idx);
     setBusy(true);
     try {
+      await ensureFirebaseAuth();
       await updateRoomMembers(db, roomId, next, hostPlayerId);
     } catch (e) {
       setErr('AI 제거 실패');
@@ -149,7 +151,13 @@ export default function LobbyScreen({
   const syncPackOnline = async (key) => {
     setSelectedPackKey(key);
     if (!onlineOk || !roomId || !isHost) return;
-    await updateDoc(doc(db, 'rooms', roomId), { packKey: key, updatedAt: serverTimestamp() });
+    try {
+      await ensureFirebaseAuth();
+      await updateDoc(doc(db, 'rooms', roomId), { packKey: key, updatedAt: serverTimestamp() });
+    } catch (e) {
+      console.error(e);
+      setErr('단어 수준 동기화에 실패했습니다.');
+    }
   };
 
   const handleCreateRoom = async () => {
@@ -162,6 +170,7 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
+      await ensureFirebaseAuth();
       await createRoomDoc(db, code, {
         hostId: playerId,
         packKey: selectedPackKey,
@@ -173,7 +182,10 @@ export default function LobbyScreen({
       setMode('online');
     } catch (e) {
       console.error(e);
-      setErr('방 만들기에 실패했습니다.');
+      const msg = e?.code === 'auth/operation-not-allowed'
+        ? 'Firebase 콘솔에서 익명 로그인을 켜 주세요.'
+        : e?.message || '';
+      setErr(msg ? `방 만들기에 실패했습니다. (${msg})` : '방 만들기에 실패했습니다.');
     } finally {
       setBusy(false);
     }
@@ -189,6 +201,7 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
+      await ensureFirebaseAuth();
       await joinRoomDoc(db, code, { playerId, name: playerName, isAI: false });
       setRoomId(code);
       setIsHost(false);
@@ -215,6 +228,7 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
+      await ensureFirebaseAuth();
       await beginOnlineHostGame({
         db,
         roomId,

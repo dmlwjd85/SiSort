@@ -14,5 +14,5 @@ export const shuffleArray = (array) => {
   return newArr;
 };
 
-// 동적 타이머 (1레벨 14초, 이후 2초씩 증가)
-export const getLevelTime = (lvl) => 14 + (lvl - 1) * 2;
+// 동적 타이머 (1레벨 17초, 이후 레벨마다 2초씩 증가 — 기존 대비 +3초)
+export const getLevelTime = (lvl) => 17 + (lvl - 1) * 2;
