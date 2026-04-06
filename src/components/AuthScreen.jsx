@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { isFirebaseConfigured } from '../lib/firebase.js';
-import { registerWithEmail, loginWithEmail, updateUserDisplayName } from '../lib/authService.js';
+import { registerWithEmail, loginWithEmail, updateUserDisplayName, listSignInMethodsForEmail } from '../lib/authService.js';
 import { createUserProfile, recordUserAccess, fetchUserDocument } from '../lib/userProfileService.js';
 import {
   buildAccountEmailFromName,
@@ -64,11 +64,20 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const [password2, setPassword2] = useState('');
   /** 마스터: 첫 로그인 번호 6~7자리만 입력 — Firebase 비밀번호도 동일 숫자 */
   const [masterFirstLogin, setMasterFirstLogin] = useState('');
+  /** 마스터 하위: login | setup — 콘솔에서 기존 계정 삭제 후 «최초 설정»으로 바로 가입 */
+  const [masterSubMode, setMasterSubMode] = useState('setup');
+  const [masterSetupPin, setMasterSetupPin] = useState('');
+  const [masterSetupPin2, setMasterSetupPin2] = useState('');
+  const [masterSetupSecret, setMasterSetupSecret] = useState('');
   const [guestName, setGuestName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
   const firebaseOk = isFirebaseConfigured();
+  /** 배포 시 GitHub Secrets 등으로 넣으면 최초 설정 시에만 요구(빌드에 포함되므로 민감도 낮은 값 권장) */
+  const masterSetupSecretRequired = Boolean(
+    import.meta.env.VITE_MASTER_SETUP_SECRET && String(import.meta.env.VITE_MASTER_SETUP_SECRET).length > 0
+  );
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -218,6 +227,65 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     }
   };
 
+  const handleMasterSetup = async (e) => {
+    e.preventDefault();
+    setErr('');
+    const a = masterSetupPin.replace(/\D/g, '');
+    const b = masterSetupPin2.replace(/\D/g, '');
+    if (a !== b) {
+      setErr('번호 확인이 일치하지 않습니다.');
+      return;
+    }
+    if (a.length !== 6 && a.length !== 7) {
+      setErr('마스터 번호는 숫자 6자리 또는 7자리입니다.');
+      return;
+    }
+    if (masterSetupSecretRequired) {
+      const want = String(import.meta.env.VITE_MASTER_SETUP_SECRET);
+      if (masterSetupSecret.trim() !== want) {
+        setErr('마스터 최초 설정 키가 올바르지 않습니다.');
+        return;
+      }
+    }
+    let internalEmail;
+    try {
+      internalEmail = buildMasterAccountEmail(a);
+    } catch {
+      setErr('번호 형식을 확인해 주세요.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const methods = await listSignInMethodsForEmail(internalEmail);
+      if (methods.length > 0) {
+        setErr('이 번호는 이미 마스터로 등록되어 있습니다. «로그인»을 사용하세요.');
+        return;
+      }
+      const user = await registerWithEmail(internalEmail, masterPinToFirebasePassword(a), '마스터');
+      await createUserProfile(user.uid, {
+        email: user.email || internalEmail,
+        birthDate: '',
+        displayName: '마스터',
+      });
+      safeSetItem('sisort_name', '마스터');
+      safeSetItem(GUEST_KEY, '0');
+      onLoggedIn(user);
+    } catch (er) {
+      const code = er?.code || '';
+      if (code === 'auth/email-already-in-use') {
+        setErr('이미 등록된 마스터입니다. «로그인»을 사용하세요.');
+      } else if (code === 'auth/weak-password') {
+        setErr('비밀번호 처리에 실패했습니다.');
+      } else if (code === 'auth/operation-not-allowed') {
+        setErr(
+          'Firebase에서 이메일/비밀번호 가입이 꺼져 있습니다. 콘솔 → Authentication → Sign-in method를 확인해 주세요.'
+        );
+      } else setErr(er?.message || '마스터 최초 설정에 실패했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleGuest = (e) => {
     e.preventDefault();
     const t = guestName.trim();
@@ -293,7 +361,11 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
         </button>
         <button
           type="button"
-          onClick={() => { setMode('master'); setErr(''); }}
+          onClick={() => {
+            setMode('master');
+            setErr('');
+            setMasterSubMode('setup');
+          }}
           className={tabBtn(mode === 'master', 'bg-violet-600')}
         >
           마스터
@@ -362,44 +434,122 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       )}
 
       {mode === 'master' && (
-        <form onSubmit={handleMasterLogin} className="w-full space-y-3">
-          <div className="rounded-xl border border-violet-500/40 bg-violet-950/35 px-3 py-2.5 mb-1">
+        <div className="w-full space-y-4">
+          <div className="rounded-xl border border-violet-500/40 bg-violet-950/35 px-3 py-2.5">
             <p className="text-[12px] text-violet-100/95 text-center break-keep leading-relaxed">
-              <strong className="text-amber-200">마스터</strong>는 «첫 로그인 번호»만 입력합니다(숫자 6자리 또는 7자리).{' '}
-              Firebase Authentication 에는 이메일{' '}
-              <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_같은숫자@sisort.local</code> 로 사용자를 만들고,{' '}
-              <strong className="text-amber-200">비밀번호도 그 숫자와 동일</strong>하게 넣어야 합니다. 권한은 기존 마스터·관리자와 동일합니다.
-            </p>
-            <p className="text-[11px] text-slate-500 text-center mt-1.5 break-keep">
-              One field — 6 or 7 digits. In Firebase: email master_NNN…@sisort.local and password = the same digits.
+              콘솔에서 기존 <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_*@sisort.local</code> 사용자를
+              삭제한 뒤, <strong className="text-amber-200">«최초 설정»</strong>에서 번호만 정하면 가입과 동시에 들어갑니다. 이미
+              만들어 둔 계정은 <strong className="text-amber-200">«로그인»</strong>을 쓰세요. 비밀번호는 번호와 동일합니다.
             </p>
           </div>
-          <div>
-            <label htmlFor="sisort-master-first" className="block text-xs font-bold text-violet-200/95 mb-1.5">
-              첫 로그인 번호 (= Firebase 비밀번호, 숫자 6~7자리)
-            </label>
-            <input
-              id="sisort-master-first"
-              inputMode="numeric"
-              type="password"
-              name="masterFirstLogin"
-              value={masterFirstLogin}
-              onChange={(e) => setMasterFirstLogin(e.target.value.replace(/\D/g, '').slice(0, 7))}
-              placeholder="0000000"
-              maxLength={7}
-              autoComplete="current-password"
-              className={`${inputBase} tracking-widest text-center text-lg`}
-              required
-            />
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setMasterSubMode('setup'); setErr(''); }}
+              className={tabBtn(masterSubMode === 'setup', 'bg-fuchsia-600')}
+            >
+              최초 설정
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMasterSubMode('login'); setErr(''); }}
+              className={tabBtn(masterSubMode === 'login', 'bg-violet-600')}
+            >
+              로그인
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={busy}
-            className="mt-2 w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3.5 font-black text-white shadow-lg disabled:opacity-50"
-          >
-            마스터로 로그인
-          </button>
-        </form>
+
+          {masterSubMode === 'setup' && (
+            <form onSubmit={handleMasterSetup} className="w-full space-y-3">
+              <div>
+                <label htmlFor="sisort-master-setup-1" className="block text-xs font-bold text-violet-200/95 mb-1.5">
+                  초기 번호 (6~7자리, 이후 로그인 비밀번호와 동일)
+                </label>
+                <input
+                  id="sisort-master-setup-1"
+                  inputMode="numeric"
+                  type="password"
+                  value={masterSetupPin}
+                  onChange={(e) => setMasterSetupPin(e.target.value.replace(/\D/g, '').slice(0, 7))}
+                  placeholder="0000000"
+                  maxLength={7}
+                  autoComplete="new-password"
+                  className={`${inputBase} tracking-widest text-center text-lg`}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="sisort-master-setup-2" className="block text-xs font-bold text-violet-200/95 mb-1.5">
+                  번호 확인
+                </label>
+                <input
+                  id="sisort-master-setup-2"
+                  inputMode="numeric"
+                  type="password"
+                  value={masterSetupPin2}
+                  onChange={(e) => setMasterSetupPin2(e.target.value.replace(/\D/g, '').slice(0, 7))}
+                  placeholder="한 번 더 입력"
+                  maxLength={7}
+                  autoComplete="new-password"
+                  className={`${inputBase} tracking-widest text-center text-lg`}
+                  required
+                />
+              </div>
+              {masterSetupSecretRequired && (
+                <div>
+                  <label htmlFor="sisort-master-setup-secret" className="block text-xs font-bold text-violet-200/95 mb-1.5">
+                    마스터 최초 설정 키 (배포 시에만 필요)
+                  </label>
+                  <input
+                    id="sisort-master-setup-secret"
+                    type="password"
+                    value={masterSetupSecret}
+                    onChange={(e) => setMasterSetupSecret(e.target.value)}
+                    autoComplete="off"
+                    className={inputBase}
+                  />
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-2xl bg-gradient-to-r from-fuchsia-600 to-pink-600 py-3.5 font-black text-white shadow-lg disabled:opacity-50"
+              >
+                마스터 가입하고 들어가기
+              </button>
+            </form>
+          )}
+
+          {masterSubMode === 'login' && (
+            <form onSubmit={handleMasterLogin} className="w-full space-y-3">
+              <div>
+                <label htmlFor="sisort-master-first" className="block text-xs font-bold text-violet-200/95 mb-1.5">
+                  첫 로그인 번호 (= 비밀번호, 숫자 6~7자리)
+                </label>
+                <input
+                  id="sisort-master-first"
+                  inputMode="numeric"
+                  type="password"
+                  name="masterFirstLogin"
+                  value={masterFirstLogin}
+                  onChange={(e) => setMasterFirstLogin(e.target.value.replace(/\D/g, '').slice(0, 7))}
+                  placeholder="0000000"
+                  maxLength={7}
+                  autoComplete="current-password"
+                  className={`${inputBase} tracking-widest text-center text-lg`}
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3.5 font-black text-white shadow-lg disabled:opacity-50"
+              >
+                마스터로 로그인
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
       {mode === 'register' && (

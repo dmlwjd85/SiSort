@@ -7,6 +7,7 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  fetchSignInMethodsForEmail,
 } from 'firebase/auth';
 import { getApps, initializeApp } from 'firebase/app';
 import { readFirebaseConfig } from './firebaseConfig.js';
@@ -58,6 +59,13 @@ export async function loginWithEmail(email, password) {
   if (!auth) throw new Error('Firebase 미구성');
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return cred.user;
+}
+
+/** 해당 이메일에 연결된 로그인 수단 목록(비어 있으면 아직 가입 없음 → 마스터 최초 설정 가능) */
+export async function listSignInMethodsForEmail(email) {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error('Firebase 미구성');
+  return fetchSignInMethodsForEmail(auth, email.trim());
 }
 
 /** 로그인 후 표시 이름만 갱신(마스터 계정 등) */
