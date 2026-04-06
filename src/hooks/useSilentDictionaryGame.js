@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- 원본 의존성 배열([timeLeft, gameState, ...])과 동일 */
 import { useState, useEffect } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { shuffleArray, getLevelTime } from '../utils/helpers.js';
