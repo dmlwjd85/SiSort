@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReviewMeaningQuiz from './ReviewMeaningQuiz.jsx';
 import DraggablePanel from './DraggablePanel.jsx';
+import { shuffleArray } from '../utils/helpers.js';
 
 /**
  * 레벨 클리어 / 게임 오버 / 최종 승리 모달
@@ -17,21 +18,71 @@ export default function ResultModal({
   onGoLobby,
 }) {
   const [quizCard, setQuizCard] = useState(null);
+  /** 복습 준비(10초) — 끝나거나 버튼으로 바로 시작 */
+  const [reviewPrepDone, setReviewPrepDone] = useState(false);
+  const [reviewPrepLeft, setReviewPrepLeft] = useState(10);
 
-  const sortedCards = useMemo(
-    () => [...allCards].sort((a, b) => a.rank - b.rank),
-    [allCards]
+  /** 이번 레벨에서 복습할 카드: 1레벨 1장 … N레벨 N장(상한: 이번 레벨 카드 수) 무작위 추출 */
+  const reviewOrder = useMemo(() => {
+    if (!allCards?.length) return [];
+    const sorted = [...allCards].sort((a, b) => a.rank - b.rank);
+    const n = Math.min(Math.max(1, level), sorted.length);
+    const shuffled = shuffleArray([...sorted]);
+    return shuffled.slice(0, n);
+  }, [allCards, level]);
+
+  const reviewDoneCount = useMemo(
+    () => reviewOrder.filter((c) => reviewedWords.includes(c.id)).length,
+    [reviewOrder, reviewedWords]
   );
+  const reviewComplete = reviewOrder.length === 0 || reviewDoneCount >= reviewOrder.length;
+
   const nextUnreviewedCard = useMemo(
-    () => sortedCards.find((c) => !reviewedWords.includes(c.id)) ?? null,
-    [sortedCards, reviewedWords]
+    () => reviewOrder.find((c) => !reviewedWords.includes(c.id)) ?? null,
+    [reviewOrder, reviewedWords]
   );
+
+  useEffect(() => {
+    if (gameState !== 'level_clear') return;
+    setReviewPrepDone(false);
+    setReviewPrepLeft(10);
+    setQuizCard(null);
+  }, [gameState, level]);
+
+  useEffect(() => {
+    if (gameState !== 'level_clear' || reviewPrepDone) return;
+    if (reviewPrepLeft <= 0) {
+      setReviewPrepDone(true);
+      return;
+    }
+    const t = setTimeout(() => setReviewPrepLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [gameState, reviewPrepDone, reviewPrepLeft]);
 
   if (gameState !== 'level_clear' && gameState !== 'game_over' && gameState !== 'victory') return null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-y-auto bg-slate-900/80 p-4 backdrop-blur-sm">
-      {gameState === 'level_clear' && (
+      {gameState === 'level_clear' && !reviewPrepDone && (
+        <div className="pointer-events-auto fixed inset-0 z-[105] flex items-center justify-center bg-slate-950/92 p-4 backdrop-blur-sm">
+          <DraggablePanel className="w-full max-w-md rounded-2xl border border-amber-600/50 bg-slate-900/95 p-6 shadow-2xl text-center">
+            <h3 className="text-lg font-bold text-amber-200 mb-2 break-keep">복습 전 준비 시간</h3>
+            <p className="text-sm text-slate-400 mb-4 break-keep">
+              이번 레벨 단어를 떠올려 보세요. 레벨 {level}에서는 무작위로 {reviewOrder.length}개만 복습합니다.
+            </p>
+            <div className="text-6xl font-black text-white tabular-nums mb-6">{reviewPrepLeft}</div>
+            <button
+              type="button"
+              onClick={() => setReviewPrepDone(true)}
+              className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-3.5 font-bold text-lg text-white shadow-lg"
+            >
+              준비 완료 · 바로 시작
+            </button>
+          </DraggablePanel>
+        </div>
+      )}
+
+      {gameState === 'level_clear' && reviewPrepDone && (
         <div className="pointer-events-auto max-w-2xl w-full flex flex-col items-center">
           <DraggablePanel className="w-full max-w-2xl rounded-2xl border border-slate-600 bg-slate-900/95 p-4 shadow-2xl">
           <div className="text-6xl mb-4">🎉</div>
@@ -41,7 +92,7 @@ export default function ResultModal({
           <button
             type="button"
             onClick={() => {
-              if (reviewedWords.length > 0 && reviewedWords.length < allCards.length) {
+              if (reviewOrder.length > 0 && !reviewComplete) {
                 if (!window.confirm('복습을 모두 마치지 않았습니다. 로비(홈)로 나가시겠습니까?')) return;
               }
               onGoLobby?.();
@@ -54,7 +105,7 @@ export default function ResultModal({
           {/* 모바일: 단어 목록·순서를 숨기고 버튼으로만 퀴즈 진입 (정답 노출 방지) */}
           <div className="md:hidden w-full mb-4 space-y-3 text-center">
             <p className="text-sm text-slate-300">
-              복습 진행: {reviewedWords.length} / {allCards.length}
+              복습 진행: {reviewDoneCount} / {reviewOrder.length}
             </p>
             {nextUnreviewedCard ? (
               <button
@@ -62,25 +113,23 @@ export default function ResultModal({
                 onClick={() => setQuizCard(nextUnreviewedCard)}
                 className="w-full max-w-sm rounded-xl bg-amber-600 hover:bg-amber-500 py-4 px-4 font-bold text-lg text-white shadow-lg"
               >
-                뜻 맞추기 ({allCards.length - reviewedWords.length}개 남음)
+                뜻 맞추기 ({reviewOrder.length - reviewDoneCount}개 남음)
               </button>
             ) : (
-              <p className="text-emerald-400 font-bold">이번 레벨 복습을 모두 마쳤습니다.</p>
+              <p className="text-emerald-400 font-bold">이번에 정한 복습을 모두 마쳤습니다.</p>
             )}
             <p className="text-xs text-slate-500 break-keep">
-              단어 목록은 가려 두었습니다. 버튼을 눌러 순서대로 퀴즈를 풀어 주세요.
+              단어 목록은 가려 두었습니다. 버튼을 눌러 퀴즈를 풀어 주세요.
             </p>
           </div>
 
           <div className="hidden md:block w-full bg-slate-800 rounded-xl p-4 mb-6 max-h-[45vh] overflow-y-auto border border-slate-600">
-            <h3 className="text-lg font-bold text-white mb-2 text-center border-b border-slate-700 pb-2">이번 레벨 완성 사전</h3>
-            <p className="text-xs text-yellow-400 text-center mb-3 break-keep">
-              단어를 누르면 뜻 3지선다가 열립니다. 정답을 고르면 복습 완료입니다. ({reviewedWords.length}/{allCards.length})
+            <h3 className="text-lg font-bold text-white mb-2 text-center border-b border-slate-700 pb-2">이번에 복습할 단어 (무작위 {reviewOrder.length}개)</h3>
+            <p className="text-xs text-slate-400 text-center mb-3 break-keep">
+              단어를 누르면 뜻 3지선다가 열립니다. 정답을 고르면 복습 완료입니다. (맞춘 뜻은 목록에 표시하지 않습니다)
             </p>
             <ul className="space-y-2">
-              {allCards
-                .sort((a, b) => a.rank - b.rank)
-                .map((c, i) => {
+              {reviewOrder.map((c, i) => {
                   const isReviewed = reviewedWords.includes(c.id);
                   return (
                     <li
@@ -91,25 +140,22 @@ export default function ResultModal({
                       }}
                       className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
                         isReviewed
-                          ? 'bg-blue-900/40 border-2 border-blue-400 shadow-inner cursor-default'
+                          ? 'bg-slate-700/60 border-2 border-slate-500 cursor-default'
                           : 'bg-slate-700/50 hover:bg-slate-700 border-2 border-transparent cursor-pointer'
                       }`}
                     >
                       <span
-                        className={`${isReviewed ? 'bg-blue-500' : 'bg-slate-600'} text-white text-xs font-bold px-2 py-1 rounded min-w-[24px] text-center transition-colors shrink-0 mt-1`}
+                        className={`${isReviewed ? 'bg-emerald-700' : 'bg-slate-600'} text-white text-xs font-bold px-2 py-1 rounded min-w-[24px] text-center shrink-0 mt-1`}
                       >
                         {i + 1}
                       </span>
 
-                      <div className="flex-1 break-words leading-relaxed">
-                        <span className={`font-bold text-xl transition-colors ${isReviewed ? 'text-blue-300' : 'text-white'}`}>
+                      <div className="flex-1 break-words leading-relaxed flex flex-wrap items-center gap-2">
+                        <span className={`font-bold text-xl ${isReviewed ? 'text-emerald-200' : 'text-white'}`}>
                           {c.word}
                         </span>
-
                         {isReviewed && (
-                          <span className="ml-2 text-base text-yellow-200 bg-slate-800/80 px-2 py-1 rounded-md animate-fade-in inline-block border border-yellow-500/30">
-                            ✨ {c.desc}
-                          </span>
+                          <span className="text-xs font-bold text-emerald-300/90">✓ 복습함</span>
                         )}
                       </div>
                     </li>
@@ -121,9 +167,9 @@ export default function ResultModal({
           <button
             type="button"
             onClick={() => (level === TOTAL_LEVELS ? setGameState('victory') : startLevel(level + 1))}
-            disabled={reviewedWords.length < allCards.length}
+            disabled={!reviewComplete}
             className={`px-8 py-3 rounded-full font-bold text-xl transition-all shadow-lg w-full max-w-sm ${
-              reviewedWords.length === allCards.length
+              reviewComplete
                 ? 'bg-green-500 hover:bg-green-400 text-white cursor-pointer'
                 : 'bg-slate-600 text-slate-400 cursor-not-allowed'
             }`}
@@ -168,7 +214,7 @@ export default function ResultModal({
         </div>
       )}
 
-      {quizCard && (
+      {quizCard && reviewPrepDone && (
         <ReviewMeaningQuiz
           card={quizCard}
           allCards={allCards}
@@ -177,8 +223,7 @@ export default function ResultModal({
             setReviewedWords((prev) => {
               if (prev.includes(id)) return prev;
               const next = [...prev, id];
-              const sorted = [...allCards].sort((a, b) => a.rank - b.rank);
-              const nextCard = sorted.find((c) => !next.includes(c.id)) ?? null;
+              const nextCard = reviewOrder.find((c) => !next.includes(c.id)) ?? null;
               setTimeout(() => setQuizCard(nextCard), 400);
               return next;
             });

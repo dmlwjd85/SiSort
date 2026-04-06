@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PACK_DATA } from '../data/words.js';
 import { shuffleArray, getLevelTime, assignDictionaryRanks, dedupeWordEntriesByWord } from '../utils/helpers.js';
 import {

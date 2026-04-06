@@ -49,18 +49,19 @@ export default function ReviewMeaningQuiz({ card, allCards, onCorrect, onClose, 
             const isSel = picked === ch.key;
             const showOk = phase === 'correct' && ch.isCorrect;
             const showBad = phase === 'wrong' && isSel && !ch.isCorrect;
+            /* 선택 전에는 보기 스타일을 동일하게 — 호버로 정답이 드러나 보이지 않게 */
             return (
               <button
                 key={ch.key}
                 type="button"
                 disabled={phase !== 'pick'}
                 onClick={() => handlePick(ch)}
-                className={`text-left rounded-xl px-4 py-3 text-sm sm:text-base font-medium border-2 transition-all break-keep ${
+                className={`text-left rounded-xl px-4 py-3 text-sm sm:text-base font-medium border-2 transition-colors break-keep outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800 ${
                   showOk
                     ? 'border-emerald-500 bg-emerald-900/40 text-emerald-100'
                     : showBad
                       ? 'border-red-500 bg-red-900/30 text-red-100'
-                      : 'border-slate-600 bg-slate-700/80 text-slate-100 hover:border-amber-500/60 hover:bg-slate-700'
+                      : 'border-slate-600 bg-slate-700/80 text-slate-100 hover:bg-slate-600/90 hover:border-slate-500'
                 }`}
               >
                 {ch.text}
