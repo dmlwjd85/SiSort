@@ -121,7 +121,7 @@ export default function PlayArea({
 
       {isPreparing && (
         <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md rounded-xl">
-          <h2 className="text-2xl md:text-3xl font-bold text-yellow-400 mb-8 animate-pulse text-center px-4 break-keep">
+          <h2 className="text-2xl md:text-3xl font-bold text-yellow-400 mb-8 text-center px-4 break-keep">
             내 카드를 확인하고 순서를 예상하세요!
           </h2>
 

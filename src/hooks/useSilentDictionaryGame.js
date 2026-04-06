@@ -71,9 +71,9 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
 
   let availableWords = wordPool.filter((w) => !(keepUsedWords && usedWordsBefore.includes(w.word)));
   let usedWordsNext = [...usedWordsBefore];
+  /* 이미 나온 단어는 같은 판에서 다시 쓰지 않음 — 부족하면 null (상위에서 처음부터 재시작 등 처리) */
   if (availableWords.length < totalCardsNeeded) {
-    usedWordsNext = [];
-    availableWords = wordPool;
+    return null;
   }
 
   const selectedWords = pickWordsBalancedByChoseong(availableWords, totalCardsNeeded);
@@ -152,14 +152,24 @@ export function useSilentDictionaryGame() {
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
   const [sessionMembers, setSessionMembers] = useState([]);
   const [mySlotIndex, setMySlotIndex] = useState(0);
+  /** 백그라운드 탭에서 타이머가 멈추면 크롬 절전·간섭 메시지 완화 */
+  const [docHidden, setDocHidden] = useState(
+    () => (typeof document !== 'undefined' ? document.hidden : false)
+  );
+  /** 온라인 세션 (effect 재실행용) */
+  const [netRoom, setNetRoom] = useState(null);
   const sessionMembersRef = useRef(sessionMembers);
 
   useEffect(() => {
     sessionMembersRef.current = sessionMembers;
   }, [sessionMembers]);
 
-  /** 온라인 세션 (effect 재실행용) */
-  const [netRoom, setNetRoom] = useState(null);
+  useEffect(() => {
+    const fn = () => setDocHidden(document.hidden);
+    document.addEventListener('visibilitychange', fn);
+    return () => document.removeEventListener('visibilitychange', fn);
+  }, []);
+
   const networkRef = useRef({
     db: null,
     roomId: null,
@@ -278,11 +288,23 @@ export function useSilentDictionaryGame() {
   }, []);
 
   const startLevel = useCallback(
-    (targetLevel, keepUsedWords = true, membersArg) => {
+    (targetLevel, keepUsedWords = true, membersArg, usedWordsOverride) => {
       const members = membersArg ?? sessionMembersRef.current;
-      const bundle = buildLevelBundle(targetLevel, members, selectedPackKey, usedWords, keepUsedWords);
-      if (!bundle) return;
+      const uw = usedWordsOverride !== undefined ? usedWordsOverride : usedWords;
+      let bundle = buildLevelBundle(targetLevel, members, selectedPackKey, uw, keepUsedWords);
+      let poolExhausted = false;
+      if (!bundle) {
+        poolExhausted = true;
+        bundle = buildLevelBundle(1, members, selectedPackKey, [], false);
+        if (!bundle) {
+          setMessage('단어를 구성할 수 없습니다. 참가 인원(2~15명)과 난이도를 확인해 주세요.');
+          return;
+        }
+      }
       applyLevelBundle(bundle);
+      if (poolExhausted) {
+        setMessage('남은 단어가 부족합니다. 처음부터 다시 섞어 시작합니다.');
+      }
     },
     [selectedPackKey, usedWords, applyLevelBundle]
   );
@@ -373,7 +395,8 @@ export function useSilentDictionaryGame() {
     setLives(3);
     setHints(2);
     setUsedWords([]);
-    startLevel(1, false);
+    /* setUsedWords 비동기 반영 전에 빈 목록으로 섞어 뽑기 */
+    startLevel(1, false, undefined, []);
   };
 
   const resetToLobby = useCallback(() => {
@@ -504,7 +527,8 @@ export function useSilentDictionaryGame() {
           `시간 초과로 생명력이 1 줄었습니다.\n\n【이유】사전 순서상 이번에 가장 먼저 내야 할 카드를 제한 시간이 끝나기 전에 아무도 내지 못했습니다. 차례를 놓치면 레벨을 완주할 수 없습니다.\n\n(이 레벨을 처음부터 다시 시작합니다)`
         );
         setTimeout(() => {
-          startLevel(level, false);
+          /* 같은 판 재도전: 이전 레벨에서 쓴 단어는 제외한 채 새로 뽑음 */
+          startLevel(level, true);
         }, 3000);
       }
       return newLives;
@@ -535,6 +559,7 @@ export function useSilentDictionaryGame() {
 
   useEffect(() => {
     if (gameState !== 'playing' || !isPreparing) return;
+    if (docHidden) return;
     if (prepTimeLeft <= 0) {
       setIsPreparing(false);
       setMessage('시작!');
@@ -545,13 +570,14 @@ export function useSilentDictionaryGame() {
       setPrepTimeLeft((prev) => prev - 1);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [prepTimeLeft, isPreparing, gameState]);
+  }, [prepTimeLeft, isPreparing, gameState, docHidden]);
 
   const runTimer =
     !netRoom || (netRoom.db && netRoom.roomId && netRoom.isHost);
 
   useEffect(() => {
     if (!runTimer || gameState !== 'playing' || isPaused || isHintMode || isPreparing) return;
+    if (docHidden) return;
 
     if (timeLeft <= 0) {
       handleTimeout();
@@ -565,7 +591,7 @@ export function useSilentDictionaryGame() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [timeLeft, gameState, isPaused, isHintMode, isPreparing, runTimer, checkAiPlays, handleTimeout]);
+  }, [timeLeft, gameState, isPaused, isHintMode, isPreparing, runTimer, checkAiPlays, handleTimeout, docHidden]);
 
   /** 鍮꾪샇?ㅽ듃: 諛?寃뚯엫 ?ㅻ깄??*/
   useEffect(() => {

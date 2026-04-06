@@ -26,7 +26,7 @@ export default function ResultModal({
 
           <div className="w-full bg-slate-800 rounded-xl p-4 mb-6 max-h-[45vh] overflow-y-auto border border-slate-600">
             <h3 className="text-lg font-bold text-white mb-2 text-center border-b border-slate-700 pb-2">이번 레벨 완성 사전</h3>
-            <p className="text-xs text-yellow-400 text-center mb-3 animate-pulse break-keep">
+            <p className="text-xs text-yellow-400 text-center mb-3 break-keep">
               모든 단어를 터치하여 뜻을 복습해야 다음 레벨로 갈 수 있습니다! ({reviewedWords.length}/{allCards.length})
             </p>
             <ul className="space-y-2">
