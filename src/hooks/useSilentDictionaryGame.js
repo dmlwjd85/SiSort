@@ -148,6 +148,8 @@ export function useSilentDictionaryGame() {
 
   const [allCards, setAllCards] = useState([]);
   const allCardsRef = useRef([]);
+  /** 실수로 판이 끝난 뒤 같은 레벨 재시작을 이미 걸었는지(중복 방지) */
+  const failedRoundRecoveryRef = useRef(false);
   const [playedStack, setPlayedStack] = useState([]);
 
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
@@ -278,6 +280,7 @@ export function useSilentDictionaryGame() {
 
   const applyLevelBundle = useCallback((bundle) => {
     if (!bundle) return;
+    failedRoundRecoveryRef.current = false;
     setAllCards(bundle.allCards);
     setPlayedStack(bundle.playedStack);
     setLevel(bundle.level);
@@ -314,9 +317,38 @@ export function useSilentDictionaryGame() {
     [selectedPackKey, usedWords, applyLevelBundle]
   );
 
+  /**
+   * 실수 처리 후 손패가 비고 폐기(discarded)가 있으면 이미 생명은 깎였음.
+   * 시간 초과로 이중 차감·빈 손으로 클리어 오인을 막고 같은 레벨만 다시 섞음.
+   */
+  const restartLevelAfterFailedRound = useCallback(() => {
+    if (failedRoundRecoveryRef.current) return;
+    failedRoundRecoveryRef.current = true;
+    setIsPaused(true);
+    setMessage(
+      '순서 실수로 이번 판이 끝났습니다. 같은 레벨을 다시 시작합니다. (추가 생명력 차감 없음)'
+    );
+    setTimeout(() => {
+      setMessage('');
+      startLevel(level, true);
+    }, 2000);
+  }, [level, startLevel]);
+
+  /* 실수로 손패가 비는 즉시 재시작(시간 종료까지 기다리지 않음) */
+  useEffect(() => {
+    if (gameState !== 'playing' || isPreparing) return;
+    const cards = allCards;
+    if (cards.length === 0) return;
+    const unplayed = cards.filter((c) => c.status === 'hand');
+    const hasDiscarded = cards.some((c) => c.status === 'discarded');
+    if (unplayed.length !== 0 || !hasDiscarded) return;
+    restartLevelAfterFailedRound();
+  }, [allCards, gameState, isPreparing, restartLevelAfterFailedRound]);
+
   /** ?⑤씪???몄뒪?? 諛⑹뿉 寃뚯엫 ?쒖옉 而ㅻ컠 */
   const beginOnlineHostGame = useCallback(
     async ({ db, roomId, members, mySlot, packKey, hostPlayerId, playerId }) => {
+      failedRoundRecoveryRef.current = false;
       syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
       setSessionMembers(members);
       setMySlotIndex(mySlot);
@@ -451,6 +483,12 @@ export function useSilentDictionaryGame() {
         setMessage(`앗! 누군가 더 앞선 단어를 가지고 있습니다.\n(생명력 -1)`);
         setTimeout(() => {
           setMessage('');
+          /* 손패가 이미 없으면(모두 제출·폐기) 타이머를 다시 켜면 시간 초과 이중 패널티가 남 */
+          const hands = allCardsRef.current.filter((c) => c.status === 'hand');
+          if (hands.length === 0) {
+            setIsPaused(true);
+            return;
+          }
           setIsPaused(false);
         }, 2500);
       }
@@ -522,10 +560,19 @@ export function useSilentDictionaryGame() {
   );
 
   const handleTimeout = useCallback(() => {
-    /* 레벨 클리어 직전 타이밍 레이스: 손에 남은 카드가 없으면 생명력 차감 없이 클리어 처리 */
     const cards = allCardsRef.current;
     const unplayed = cards.filter((c) => c.status === 'hand');
+    const hasDiscarded = cards.some((c) => c.status === 'discarded');
+
+    /* 실수 후 손패 없음: 생명은 이미 깎였고, 타임아웃으로 또 깎이면 안 됨 → 같은 레벨 재시작 */
     if (unplayed.length === 0 && cards.length > 0) {
+      if (hasDiscarded) {
+        if (!failedRoundRecoveryRef.current) {
+          restartLevelAfterFailedRound();
+        }
+        return;
+      }
+      /* 폐기 없이 손만 비었으면 정상 클리어 직전 레이스 */
       setIsPaused(true);
       setGameState((g) => (g === 'playing' ? 'level_clear' : g));
       return;
@@ -547,7 +594,7 @@ export function useSilentDictionaryGame() {
       }
       return newLives;
     });
-  }, [level, startLevel]);
+  }, [level, startLevel, restartLevelAfterFailedRound]);
 
   const checkAiPlays = useCallback(
     (currentTime) => {
