@@ -258,6 +258,10 @@ export function useSilentDictionaryGame(options = {}) {
   const lastHydratedGameJsonRef = useRef('');
   /** 호스트: Firestore에 동일 페이로드 연속 쓰기 방지 */
   const lastNetworkWriteJsonRef = useRef('');
+  /** 게스트: 제출 직후~스냅샷 수신 전까지 중복 클릭 방지 */
+  const [guestPlayLocked, setGuestPlayLocked] = useState(false);
+  /** 호스트: 원격 PLAY_CARD로 이미 처리한 카드 id(중복 액션·이중 실수 방지) */
+  const appliedRemoteCardIdsRef = useRef(new Set());
 
   const syncNetRef = useCallback((nr) => {
     if (!nr) {
@@ -270,6 +274,8 @@ export function useSilentDictionaryGame(options = {}) {
       };
       lastHydratedGameJsonRef.current = '';
       lastNetworkWriteJsonRef.current = '';
+      appliedRemoteCardIdsRef.current.clear();
+      setGuestPlayLocked(false);
       setNetRoom(null);
       return;
     }
@@ -321,6 +327,7 @@ export function useSilentDictionaryGame(options = {}) {
       }).filter(Boolean);
 
       const rawStack = Array.isArray(g.playedStack) ? g.playedStack : [];
+      const seenPlayIds = new Set();
       const safeStack = rawStack
         .map((c, i) => {
           if (!c || typeof c !== 'object') return null;
@@ -335,7 +342,12 @@ export function useSilentDictionaryGame(options = {}) {
             revealed: Boolean(c.revealed),
           };
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter((c) => {
+          if (seenPlayIds.has(c.id)) return false;
+          seenPlayIds.add(c.id);
+          return true;
+        });
 
       const pk =
         g.selectedPackKey && PACK_DATA[g.selectedPackKey] ? g.selectedPackKey : DEFAULT_PACK_KEY;
@@ -377,6 +389,9 @@ export function useSilentDictionaryGame(options = {}) {
         }
         setHandDisplayOrder(fallbackHo);
       }
+      if (!networkRef.current.isHost) {
+        setGuestPlayLocked(false);
+      }
     } catch (e) {
       console.error('[hydrateFromGame]', e);
     }
@@ -385,6 +400,7 @@ export function useSilentDictionaryGame(options = {}) {
   const applyLevelBundle = useCallback((bundle) => {
     if (!bundle) return;
     failedRoundRecoveryRef.current = false;
+    appliedRemoteCardIdsRef.current.clear();
     aiCooldownAfterHumanUntilRef.current = 0;
     aiLastCardPlayAtRef.current = 0;
     aiPlayAtWallRef.current = 0;
@@ -467,6 +483,8 @@ export function useSilentDictionaryGame(options = {}) {
     async ({ db, roomId, members, mySlot, packKey, hostPlayerId, playerId }) => {
       lastNetworkWriteJsonRef.current = '';
       failedRoundRecoveryRef.current = false;
+      appliedRemoteCardIdsRef.current.clear();
+      setGuestPlayLocked(false);
       aiCooldownAfterHumanUntilRef.current = 0;
       aiLastCardPlayAtRef.current = 0;
       aiPlayAtWallRef.current = 0;
@@ -566,6 +584,8 @@ export function useSilentDictionaryGame(options = {}) {
     lastHydratedGameJsonRef.current = '';
     lastNetworkWriteJsonRef.current = '';
     failedRoundRecoveryRef.current = false;
+    appliedRemoteCardIdsRef.current.clear();
+    setGuestPlayLocked(false);
     aiCooldownAfterHumanUntilRef.current = 0;
     aiLastCardPlayAtRef.current = 0;
     aiPlayAtWallRef.current = 0;
@@ -627,14 +647,20 @@ export function useSilentDictionaryGame(options = {}) {
   };
 
   const handleMistake = useCallback((wrongCard) => {
-    setIsPaused(true);
     const prev = allCardsRef.current;
+    const stillInHand = prev.find((c) => c.id === wrongCard.id);
+    if (!stillInHand || stillInHand.status !== 'hand') return;
+
+    setIsPaused(true);
     const toDiscard = prev.filter((c) => c.status === 'hand' && c.rank < wrongCard.rank);
     /* 앞서 내야 했는데 밀린 카드 장수만큼 생명력 차감(최소 1) */
     const penalty = Math.max(1, toDiscard.length);
     const sortedDisc = [...toDiscard].sort((a, b) => a.rank - b.rank);
 
-    setPlayedStack((stack) => [...stack, wrongCard, ...sortedDisc]);
+    setPlayedStack((stack) => {
+      if (stack.some((c) => c.id === wrongCard.id)) return stack;
+      return [...stack, wrongCard, ...sortedDisc];
+    });
     setAllCards((p) =>
       p.map((c) => {
         if (c.id === wrongCard.id) return { ...c, status: 'played' };
@@ -680,7 +706,12 @@ export function useSilentDictionaryGame(options = {}) {
 
       const net = networkRef.current;
       if (net.db && net.roomId && !net.isHost) {
-        pushPlayAction(net.db, net.roomId, { cardId: cardToPlay.id, slot: mySlotIndex }).catch(console.error);
+        if (guestPlayLocked) return;
+        setGuestPlayLocked(true);
+        pushPlayAction(net.db, net.roomId, { cardId: cardToPlay.id, slot: mySlotIndex }).catch((e) => {
+          console.error(e);
+          setGuestPlayLocked(false);
+        });
         return;
       }
 
@@ -706,7 +737,10 @@ export function useSilentDictionaryGame(options = {}) {
           if (!arr) return prevHo;
           return { ...prevHo, [k]: arr.filter((id) => id !== cardToPlay.id) };
         });
-        setPlayedStack((prev) => [...prev, cardToPlay]);
+        setPlayedStack((prev) => {
+          if (prev.some((c) => c.id === cardToPlay.id)) return prev;
+          return [...prev, cardToPlay];
+        });
 
         if (unplayedCards.length === 1) {
           setIsPaused(true);
@@ -717,47 +751,60 @@ export function useSilentDictionaryGame(options = {}) {
         handleMistake(cardToPlay);
       }
     },
-    [gameState, isPaused, isPreparing, allCards, level, mySlotIndex, handleMistake]
+    [gameState, isPaused, isPreparing, allCards, level, mySlotIndex, handleMistake, guestPlayLocked]
   );
 
+  /**
+   * 호스트만: 다른 슬롯에서 원격으로 낸 카드 반영(멱등 — 동일 카드 id 중복 처리 방지)
+   */
   const applyRemotePlay = useCallback(
     (cardId, fromSlot) => {
-      setAllCards((prevCards) => {
-        const cardToPlay = prevCards.find((c) => c.id === cardId);
-        if (!cardToPlay || parseSlot(cardToPlay.owner) !== fromSlot) return prevCards;
+      const id = String(cardId);
+      if (appliedRemoteCardIdsRef.current.has(id)) return;
 
-        const unplayedCards = prevCards.filter((c) => c.status === 'hand');
-        if (unplayedCards.length === 0) return prevCards;
+      const prevCards = allCardsRef.current;
+      const cardToPlay = prevCards.find((c) => c.id === id);
+      if (!cardToPlay || parseSlot(cardToPlay.owner) !== fromSlot) return;
+      if (cardToPlay.status !== 'hand') return;
 
-        const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
-        if (ranks.length === 0) return prevCards;
-        const lowestRank = Math.min(...ranks);
+      const unplayedCards = prevCards.filter((c) => c.status === 'hand');
+      if (unplayedCards.length === 0) return;
 
-        if (cardToPlay.rank === lowestRank) {
-          const m = sessionMembersRef.current[fromSlot];
-          if (m && !m.isAI) {
-            aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
-            aiPlayScheduledCardIdRef.current = '';
-            aiPlayAtWallRef.current = 0;
-          }
-          const next = prevCards.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c));
-          setHandDisplayOrder((prevHo) => {
-            const k = slotOwner(fromSlot);
-            const arr = prevHo[k];
-            if (!arr) return prevHo;
-            return { ...prevHo, [k]: arr.filter((id) => id !== cardToPlay.id) };
-          });
-          setPlayedStack((prev) => [...prev, cardToPlay]);
-          if (unplayedCards.length === 1) {
-            setIsPaused(true);
-            if (level % 3 === 0) setHints((h) => h + 1);
-            setGameState('level_clear');
-          }
-          return next;
+      const ranks = unplayedCards.map((c) => c.rank).filter((r) => Number.isFinite(r));
+      if (ranks.length === 0) return;
+      const lowestRank = Math.min(...ranks);
+
+      if (cardToPlay.rank === lowestRank) {
+        appliedRemoteCardIdsRef.current.add(id);
+        const m = sessionMembersRef.current[fromSlot];
+        if (m && !m.isAI) {
+          aiCooldownAfterHumanUntilRef.current = Date.now() + 2000;
+          aiPlayScheduledCardIdRef.current = '';
+          aiPlayAtWallRef.current = 0;
         }
-        setTimeout(() => handleMistake(cardToPlay), 0);
-        return prevCards;
-      });
+        setAllCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: 'played' } : c)));
+        setHandDisplayOrder((prevHo) => {
+          const k = slotOwner(fromSlot);
+          const arr = prevHo[k];
+          if (!arr) return prevHo;
+          return { ...prevHo, [k]: arr.filter((cid) => cid !== id) };
+        });
+        setPlayedStack((prev) => {
+          if (prev.some((c) => c.id === id)) return prev;
+          return [...prev, cardToPlay];
+        });
+        if (unplayedCards.length === 1) {
+          setIsPaused(true);
+          if (level % 3 === 0) setHints((h) => h + 1);
+          setGameState('level_clear');
+        }
+        return;
+      }
+
+      const live = allCardsRef.current.find((c) => c.id === id);
+      if (!live || live.status !== 'hand') return;
+      appliedRemoteCardIdsRef.current.add(id);
+      handleMistake(cardToPlay);
     },
     [level, handleMistake]
   );
@@ -928,6 +975,8 @@ export function useSilentDictionaryGame(options = {}) {
         lastHydratedGameJsonRef.current = '';
         lastNetworkWriteJsonRef.current = '';
         failedRoundRecoveryRef.current = false;
+        appliedRemoteCardIdsRef.current.clear();
+        setGuestPlayLocked(false);
         aiCooldownAfterHumanUntilRef.current = 0;
         aiLastCardPlayAtRef.current = 0;
         aiPlayAtWallRef.current = 0;
@@ -1151,6 +1200,7 @@ export function useSilentDictionaryGame(options = {}) {
     handleRevealAICard,
     handlePlayCard,
     reorderMyHandPrep,
+    guestPlayLocked,
     userHand,
     lastPlayed,
     sortedPlayedStack,

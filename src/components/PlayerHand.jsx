@@ -12,6 +12,7 @@ export default function PlayerHand({
   isHintMode,
   isPreparing,
   reorderMyHandPrep,
+  guestPlayLocked,
 }) {
   const [dragFrom, setDragFrom] = useState(null);
 
@@ -67,7 +68,13 @@ export default function PlayerHand({
                 applyReorder(from, index);
               }}
               onClick={() => handlePlayCard(card)}
-              disabled={gameState !== 'playing' || isPaused || isHintMode || isPreparing}
+              disabled={
+                gameState !== 'playing' ||
+                isPaused ||
+                isHintMode ||
+                isPreparing ||
+                guestPlayLocked
+              }
               className={`w-28 h-40 sm:w-32 sm:h-44 bg-white rounded-xl shadow-lg flex flex-col items-center justify-center p-3 text-slate-800 transition-transform hover:-translate-y-4 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-50 disabled:hover:translate-y-0 ${
                 canReorder ? 'cursor-grab active:cursor-grabbing' : ''
               } ${dragFrom === index ? 'ring-2 ring-amber-400 opacity-90' : ''}`}

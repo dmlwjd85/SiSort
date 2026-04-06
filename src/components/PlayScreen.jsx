@@ -31,6 +31,7 @@ export default function PlayScreen(props) {
     userHand,
     handlePlayCard,
     reorderMyHandPrep,
+    guestPlayLocked,
     reviewedWords,
     setReviewedWords,
     startLevel,
@@ -85,6 +86,7 @@ export default function PlayScreen(props) {
           isHintMode={isHintMode}
           isPreparing={isPreparing}
           reorderMyHandPrep={reorderMyHandPrep}
+          guestPlayLocked={guestPlayLocked}
         />
       </div>
 
