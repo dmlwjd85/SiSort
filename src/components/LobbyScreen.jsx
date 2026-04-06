@@ -53,6 +53,8 @@ export default function LobbyScreen({
   const guestPlayStartedRef = useRef(false);
   /** 이 방 스냅샷에서 한 번이라도 members에 본인 playerId가 있었는지 — 캐시·레이스로 빈 목록이 먼저 오면 추방 오인 방지 */
   const seenSelfInMembersRef = useRef(false);
+  /** 참가·방 생성 직후 일정 시간은 추방 판정 금지(정상 입장 직후 오인 방지) */
+  const kickBlockedUntilRef = useRef(0);
   const [showNameEdit, setShowNameEdit] = useState(false);
   const [nameDraft, setNameDraft] = useState(playerName);
 
@@ -67,6 +69,7 @@ export default function LobbyScreen({
   useEffect(() => {
     guestPlayStartedRef.current = false;
     seenSelfInMembersRef.current = false;
+    if (roomId == null) kickBlockedUntilRef.current = 0;
   }, [roomId]);
 
   useEffect(() => {
@@ -84,6 +87,13 @@ export default function LobbyScreen({
     if (mode === 'online' && remoteRoom?.members?.length) return remoteRoom.members;
     return localMembers;
   }, [mode, remoteRoom, localMembers]);
+
+  const hostMemberLabel = useMemo(() => {
+    const hid = remoteRoom?.hostId;
+    if (!hid || !members?.length) return null;
+    const hm = members.find((m) => m && String(m.playerId) === String(hid));
+    return hm?.name ?? '방장';
+  }, [remoteRoom?.hostId, members]);
 
   useEffect(() => {
     if (!onlineOk || !roomId || mode !== 'online') {
@@ -104,6 +114,7 @@ export default function LobbyScreen({
       if (inList) seenSelfInMembersRef.current = true;
 
       const isRoomHostDoc = data.hostId != null && String(data.hostId) === String(playerId);
+      const kickAllowed = Date.now() >= kickBlockedUntilRef.current;
       /* 실제 추방: 이전에 본인이 목록에 있었는데 로비에서 빠진 경우만 (참가 직후 레이스·캐시 오인 제거) */
       if (
         roomId &&
@@ -111,7 +122,8 @@ export default function LobbyScreen({
         list.length > 0 &&
         !inList &&
         seenSelfInMembersRef.current &&
-        !isRoomHostDoc
+        !isRoomHostDoc &&
+        kickAllowed
       ) {
         setErr('방에서 추방되었습니다.');
         setRoomId(null);
@@ -232,12 +244,18 @@ export default function LobbyScreen({
       setIsHost(true);
       setHostPlayerId(playerId);
       setMode('online');
+      seenSelfInMembersRef.current = true;
+      kickBlockedUntilRef.current = Date.now() + 20000;
     } catch (e) {
       console.error(e);
-      const msg = e?.code === 'auth/operation-not-allowed'
-        ? 'Firebase 콘솔에서 익명 로그인을 켜 주세요.'
-        : e?.message || '';
-      setErr(msg ? `방 만들기에 실패했습니다. (${msg})` : '방 만들기에 실패했습니다.');
+      if (e?.message === 'ROOM_ALREADY_EXISTS') {
+        setErr('이미 같은 이름의 방이 있습니다. 다른 코드를 쓰거나 참가를 눌러 주세요.');
+      } else {
+        const msg = e?.code === 'auth/operation-not-allowed'
+          ? 'Firebase 콘솔에서 익명 로그인을 켜 주세요.'
+          : e?.message || '';
+        setErr(msg ? `방 만들기에 실패했습니다. (${msg})` : '방 만들기에 실패했습니다.');
+      }
     } finally {
       setBusy(false);
     }
@@ -250,6 +268,10 @@ export default function LobbyScreen({
       setErr('방 코드 4자리를 입력하세요.');
       return;
     }
+    if (roomId === code) {
+      setErr('이미 이 방에 연결되어 있습니다.');
+      return;
+    }
     setBusy(true);
     setErr('');
     try {
@@ -259,6 +281,7 @@ export default function LobbyScreen({
       setIsHost(false);
       setHostPlayerId(null);
       setMode('online');
+      kickBlockedUntilRef.current = Date.now() + 25000;
     } catch (e) {
       console.error(e);
       if (e.message === 'ROOM_NOT_FOUND') setErr('방을 찾을 수 없습니다.');
@@ -379,26 +402,60 @@ export default function LobbyScreen({
 
       <div className="w-full max-w-2xl bg-slate-800 rounded-2xl border border-slate-700 p-4 mb-4">
         <label className="block text-xs text-slate-400 mb-1">방 이름 (4자리 · 대문자·숫자)</label>
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
-            value={roomCode}
-            onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
-            maxLength={4}
-            className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
-          />
-          {mode === 'online' && onlineOk && (
-            <>
-              <button type="button" onClick={handleCreateRoom} disabled={busy || !canStart} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold disabled:opacity-40">
-                방 만들기
-              </button>
-              <button type="button" onClick={handleJoinRoom} disabled={busy} className="rounded-lg bg-slate-600 px-3 py-2 text-sm font-bold">
-                참가
-              </button>
-            </>
-          )}
-        </div>
+        {mode === 'online' && onlineOk ? (
+          <form
+            className="flex flex-wrap gap-2 items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!busy) void handleJoinRoom();
+            }}
+          >
+            <input
+              value={roomCode}
+              onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
+              maxLength={4}
+              autoComplete="off"
+              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-slate-600 px-3 py-2 text-sm font-bold disabled:opacity-40 order-2 sm:order-1"
+            >
+              참가
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCreateRoom()}
+              disabled={busy || !canStart}
+              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold disabled:opacity-40 order-3 sm:order-2"
+            >
+              방 만들기
+            </button>
+          </form>
+        ) : (
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              value={roomCode}
+              onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
+              maxLength={4}
+              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
+            />
+          </div>
+        )}
+        <p className="text-[11px] text-slate-500 mt-1.5">Enter 키는 참가로 동작합니다.</p>
         {mode === 'online' && roomId && (
-          <p className="text-emerald-400 text-sm mt-2">연결된 방: <strong>{roomId}</strong> {isHost ? '(호스트)' : '(참가자)'}</p>
+          <div className="text-emerald-400 text-sm mt-2 space-y-0.5">
+            <p>
+              연결된 방: <strong>{roomId}</strong> {isHost ? '(나 — 방장)' : '(참가자)'}
+            </p>
+            {!isHost && hostMemberLabel && (
+              <p className="text-amber-200/95 text-xs">
+                방장: <strong>{hostMemberLabel}</strong>
+              </p>
+            )}
+            {isHost && <p className="text-amber-200/95 text-xs">이 방의 방장은 나입니다.</p>}
+          </div>
         )}
       </div>
 
@@ -458,9 +515,20 @@ export default function LobbyScreen({
           </div>
         </div>
         <ul className="space-y-1 text-sm">
-          {members.map((m, i) => (
+          {members.map((m, i) => {
+            const isHostMember =
+              mode === 'online' &&
+              roomId &&
+              remoteRoom?.hostId != null &&
+              String(remoteRoom.hostId) === String(m.playerId);
+            return (
             <li key={`${m.playerId}-${i}`} className="flex justify-between items-center gap-2 border-b border-slate-700/80 py-1">
-              <span>{m.isAI ? '🤖' : '👤'} {m.name}</span>
+              <span>
+                {m.isAI ? '🤖' : '👤'} {m.name}
+                {isHostMember && (
+                  <span className="ml-2 text-amber-300 text-xs font-bold">방장</span>
+                )}
+              </span>
               <span className="flex items-center gap-2 shrink-0">
                 {m.playerId === playerId && <span className="text-slate-500">(나)</span>}
                 {mode === 'online' &&
@@ -480,7 +548,8 @@ export default function LobbyScreen({
                   )}
               </span>
             </li>
-          ))}
+            );
+          })}
         </ul>
         {!canStart && (
           <p className="text-amber-400 text-xs mt-2">

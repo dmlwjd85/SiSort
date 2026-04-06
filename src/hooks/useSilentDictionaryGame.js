@@ -766,26 +766,30 @@ export function useSilentDictionaryGame() {
     return () => clearTimeout(timer);
   }, [prepTimeLeft, isPreparing, gameState, docHidden]);
 
+  /* 오프라인·호스트: 기존과 동일. 온라인 게스트도 남은 시간 표시는 매 0.1초 갱신(호스트 동기화만으로는 멈춘 것처럼 보이던 현상 완화) */
   const runTimer =
-    !netRoom || (netRoom.db && netRoom.roomId && netRoom.isHost);
+    !netRoom ||
+    (netRoom.db && netRoom.roomId && (netRoom.isHost || gameState === 'playing'));
 
   useEffect(() => {
     if (!runTimer || gameState !== 'playing' || isPaused || isHintMode || isPreparing) return;
     if (docHidden) return;
 
+    /* 시간 초과 처리는 호스트·오프라인만 — 게스트는 호스트가 보낸 game으로만 갱신 */
     if (timeLeft <= 0) {
-      handleTimeout();
+      if (!netRoom || netRoom.isHost) handleTimeout();
       return;
     }
 
     const timer = setTimeout(() => {
-      const newTime = timeLeft - 0.1;
+      const newTime = Math.max(0, timeLeft - 0.1);
       setTimeLeft(newTime);
-      checkAiPlays(newTime);
+      /* AI 연산은 호스트(또는 오프라인)만 — 게스트가 돌리면 중복 제출·상태 꼬임 */
+      if (!netRoom || netRoom.isHost) checkAiPlays(newTime);
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [timeLeft, gameState, isPaused, isHintMode, isPreparing, runTimer, checkAiPlays, handleTimeout, docHidden]);
+  }, [timeLeft, gameState, isPaused, isHintMode, isPreparing, runTimer, checkAiPlays, handleTimeout, docHidden, netRoom]);
 
   /** 鍮꾪샇?ㅽ듃: 諛?寃뚯엫 ?ㅻ깄??*/
   useEffect(() => {
@@ -819,8 +823,9 @@ export function useSilentDictionaryGame() {
 
   /* 호스트→Firestore: 시간을 0.5초 단위로 반올림해 쓰기 빈도·페이로드 변동을 줄임 (랙 완화) */
   const gameBlobForNetwork = useMemo(() => {
+    /* 0.1초 단위 반올림 — 게스트 화면이 덜 끊겨 보이도록 호스트 동기화 해상도 유지 */
     const roundedTime =
-      Number.isFinite(timeLeft) && timeLeft > 0 ? Math.round(timeLeft * 2) / 2 : timeLeft;
+      Number.isFinite(timeLeft) && timeLeft > 0 ? Math.round(timeLeft * 10) / 10 : timeLeft;
     return serializeGame({
       gameState,
       level,
@@ -869,7 +874,7 @@ export function useSilentDictionaryGame() {
       if (j === lastNetworkWriteJsonRef.current) return;
       lastNetworkWriteJsonRef.current = j;
       updateRoomGame(netRoom.db, netRoom.roomId, netRoom.hostPlayerId, payload).catch(console.error);
-    }, 600);
+    }, 320);
     return () => clearTimeout(t);
   }, [gameBlobForNetwork, gameState, netRoom]);
 

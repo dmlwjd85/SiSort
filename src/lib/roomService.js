@@ -1,6 +1,5 @@
 import {
   doc,
-  setDoc,
   runTransaction,
   serverTimestamp,
   onSnapshot,
@@ -18,22 +17,25 @@ export const ROOM_MAX = 15;
 export const ONLINE_ROOM_MAX = 4;
 
 /**
- * 방 생성(로비)
+ * 방 생성(로비) — 같은 roomId 문서가 이미 있으면 생성하지 않음(merge로 기존 방 덮어쓰기 방지)
  * @param {import('firebase/firestore').Firestore} db
  */
 export async function createRoomDoc(db, roomId, { hostId, packKey, members }) {
-  await setDoc(
-    doc(db, 'rooms', roomId),
-    {
+  const ref = doc(db, 'rooms', roomId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.exists()) {
+      throw new Error('ROOM_ALREADY_EXISTS');
+    }
+    transaction.set(ref, {
       hostId,
       packKey,
       phase: 'lobby',
       members,
       game: null,
       updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+    });
+  });
 }
 
 /**
