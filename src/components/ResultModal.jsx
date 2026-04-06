@@ -173,8 +173,15 @@ export default function ResultModal({
           card={quizCard}
           allCards={allCards}
           onCorrect={() => {
-            setReviewedWords((prev) => (prev.includes(quizCard.id) ? prev : [...prev, quizCard.id]));
-            setQuizCard(null);
+            const id = quizCard.id;
+            setReviewedWords((prev) => {
+              if (prev.includes(id)) return prev;
+              const next = [...prev, id];
+              const sorted = [...allCards].sort((a, b) => a.rank - b.rank);
+              const nextCard = sorted.find((c) => !next.includes(c.id)) ?? null;
+              setTimeout(() => setQuizCard(nextCard), 400);
+              return next;
+            });
           }}
           onClose={() => setQuizCard(null)}
           onGoLobby={() => {

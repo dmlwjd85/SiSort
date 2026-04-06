@@ -15,9 +15,19 @@ export default function GameHeader({
   gameState,
   isPaused,
   onLeaveLobby,
+  /** 라운드 남은 시간(초) — 마지막 5초만 크게 표시 */
+  timeLeft = 0,
+  isPreparing = false,
 }) {
   /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) — 제한 시간은 로직만 유지하고 화면에는 표시하지 않음 */
   const safeLives = Math.max(0, Math.min(99, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
+  const showFinalCount =
+    gameState === 'playing' &&
+    !isPaused &&
+    !isPreparing &&
+    Number.isFinite(timeLeft) &&
+    timeLeft > 0 &&
+    timeLeft <= 5;
 
   return (
     <div className="bg-slate-800 p-4 shadow-md z-10">
@@ -47,7 +57,15 @@ export default function GameHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+          {showFinalCount && (
+            <div
+              className="font-black tabular-nums rounded-xl px-4 py-2 border-2 border-amber-400 bg-amber-950/90 text-amber-100 text-2xl sm:text-3xl shadow-lg shadow-amber-900/50 animate-pulse"
+              aria-live="polite"
+            >
+              {Math.ceil(timeLeft)}
+            </div>
+          )}
           <button
             type="button"
             onClick={toggleHintMode}

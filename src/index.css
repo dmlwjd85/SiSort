@@ -51,6 +51,25 @@
     animation: fade-in 0.3s ease-out forwards;
   }
 
+  @keyframes correct-play-pop {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    }
+    40% {
+      transform: scale(1.06);
+      box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.6), 0 25px 50px -12px rgb(16 185 129 / 0.35);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    }
+  }
+
+  .animate-correct-play {
+    animation: correct-play-pop 0.65s ease-out;
+  }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 1.5rem);
   }

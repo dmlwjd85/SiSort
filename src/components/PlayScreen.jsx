@@ -40,6 +40,7 @@ export default function PlayScreen(props) {
     getOwnerLabel,
     mySlotIndex,
     onLeaveLobby,
+    timeLeft,
   } = props;
 
   return (
@@ -56,6 +57,8 @@ export default function PlayScreen(props) {
         gameState={gameState}
         isPaused={isPaused}
         onLeaveLobby={onLeaveLobby}
+        timeLeft={timeLeft}
+        isPreparing={isPreparing}
       />
 
       <PlayArea

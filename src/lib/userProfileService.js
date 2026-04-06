@@ -20,9 +20,9 @@ const ACCESS_LOG_MAX = 30;
 /**
  * 회원 문서 최초 생성(회원가입 직후)
  * @param {string} uid
- * @param {{ email: string, birthDate: string, displayName: string }} p — displayName은 가입 시 이름(실명)
+ * @param {{ email: string, birthDate?: string, displayName: string }} p — displayName은 가입 시 이름(실명), birthDate는 선택(구 가입·마스터 식별용)
  */
-export async function createUserProfile(uid, { email, birthDate, displayName }) {
+export async function createUserProfile(uid, { email, birthDate = '', displayName }) {
   const db = getFirestoreDb();
   if (!db) throw new Error('Firestore 없음');
   const ref = doc(db, USERS, uid);
@@ -30,7 +30,7 @@ export async function createUserProfile(uid, { email, birthDate, displayName }) 
     ref,
     {
       email: email.trim(),
-      birthDate: String(birthDate).trim(),
+      birthDate: String(birthDate ?? '').trim(),
       displayName: displayName.trim(),
       packProgress: {},
       createdAt: serverTimestamp(),
@@ -143,6 +143,10 @@ export async function fetchUserDocument(uid) {
  * - viewRecords / unlockMembers: 세분화 권한
  * - 문서가 존재하지만 필드가 비어 있으면(레거시) 마스터와 동일하게 전 권한
  */
+/** Firestore users 프로필로 지정 마스터(실명+생년 일치) */
+const MASTER_DISPLAY_NAME = '정의정';
+const MASTER_BIRTH = '19851125';
+
 export async function fetchAdminCapabilities(user) {
   const none = {
     isAdmin: false,
@@ -169,6 +173,23 @@ export async function fetchAdminCapabilities(user) {
   }
 
   const db = getFirestoreDb();
+  if (db) {
+    const profile = await fetchUserDocument(user.uid);
+    if (profile) {
+      const dn = String(profile.displayName || '').trim();
+      const bd = String(profile.birthDate || '').replace(/\D/g, '');
+      if (dn === MASTER_DISPLAY_NAME && bd === MASTER_BIRTH) {
+        return {
+          isAdmin: true,
+          master: true,
+          viewRecords: true,
+          unlockMembers: true,
+          showAdminPanel: true,
+        };
+      }
+    }
+  }
+
   if (!db) return none;
   const snap = await getDoc(doc(db, ADMINS, user.uid));
   if (!snap.exists()) return none;

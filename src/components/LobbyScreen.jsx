@@ -16,6 +16,7 @@ import {
 import { safeSetItem } from '../utils/safeStorage.js';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomCode.js';
 import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
+import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
 
 /**
  * 명예의 전당 — 웹에서는 우측 열, 모바일에서는 하단 탭으로만 표시
@@ -500,7 +501,9 @@ export default function LobbyScreen({
   };
 
   return (
-    <div className={`min-h-screen bg-slate-900 text-white font-sans ${onlineOk ? 'pb-28 lg:pb-10' : 'pb-10'}`}>
+    <div className={`relative min-h-screen text-white font-sans ${onlineOk ? 'pb-28 lg:pb-10' : 'pb-10'}`}>
+      <KoreanThemeBackdrop />
+      <div className="relative z-10">
       <div className="w-full max-w-7xl mx-auto px-4 flex flex-wrap justify-end gap-2 pt-2">
         {onOpenMyStats && (
           <button
@@ -938,6 +941,7 @@ export default function LobbyScreen({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

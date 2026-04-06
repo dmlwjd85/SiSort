@@ -1125,29 +1125,15 @@ export function useSilentDictionaryGame(options = {}) {
     });
   }, [netRoom, mySlotIndex, applyRemotePlay]);
 
-  /** 이번에 사전 순서상 선두 카드를 낼 차례인지(내 손에 그 카드가 있을 때) */
-  const isMyTurnToPlayLead = useMemo(() => {
-    if (gameState !== 'playing' || isPreparing || isPaused || isHintMode) return false;
-    const unplayed = allCards.filter((c) => c.status === 'hand');
-    if (unplayed.length === 0) return false;
-    const ranks = unplayed.map((c) => c.rank).filter((r) => Number.isFinite(r));
-    if (ranks.length === 0) return false;
-    const lowest = Math.min(...ranks);
-    const lead = unplayed.find((c) => c.rank === lowest);
-    if (!lead) return false;
-    return parseSlot(lead.owner) === mySlotIndex;
-  }, [allCards, gameState, isPreparing, isPaused, isHintMode, mySlotIndex]);
-
-  /** 살펴보기 중이거나, 플레이 중이면서 아직 내 선두 차례가 아닐 때 손패 순서 변경 가능 */
+  /** 살펴보기 중이거나, 플레이 중 손패가 2장 이상이면 언제든 순서 변경 가능(선두 차례 포함) */
   const canReorderHand = useMemo(() => {
     if (isHintMode || isPaused) return false;
     if (isPreparing) return true;
     if (gameState !== 'playing') return false;
     const key = slotOwner(mySlotIndex);
     const cnt = allCards.filter((c) => c.owner === key && c.status === 'hand').length;
-    if (cnt <= 1) return false;
-    return !isMyTurnToPlayLead;
-  }, [isPreparing, gameState, isHintMode, isPaused, allCards, mySlotIndex, isMyTurnToPlayLead]);
+    return cnt > 1;
+  }, [isPreparing, gameState, isHintMode, isPaused, allCards, mySlotIndex]);
 
   /** 손패 순서 변경(온라인 게스트는 호스트로 전달) */
   const reorderMyHand = useCallback(

@@ -1,13 +1,13 @@
 /**
  * 이메일을 입력받지 않고 Firebase Auth(이메일/비밀번호)를 쓰기 위한 내부 식별자
- * 이름(실명) + 생년월일로 고정 이메일 문자열을 만들고, 비밀번호는 4자리 PIN을 Firebase 최소 6자에 맞게 확장한다.
+ * 이름(실명)만으로 고정 이메일 — 비밀번호는 4자리 PIN을 Firebase 최소 6자에 맞게 확장
  */
 
 const DOMAIN = 'sisort.local';
 
 /** 짧은 해시로 로컬파트 길이 제한( Firebase 등 )에 안전하게 맞춤 */
-function hashIdentity(name, birth8) {
-  const s = `${name}\0${birth8}`;
+function hashIdentity(name, salt) {
+  const s = `${name}\0${salt}`;
   let h = 5381;
   for (let i = 0; i < s.length; i += 1) {
     h = (Math.imul(33, h) ^ s.charCodeAt(i)) >>> 0;
@@ -16,7 +16,19 @@ function hashIdentity(name, birth8) {
 }
 
 /**
- * 이름(실명)·생년월일(8자리)로 계정용 이메일 형식 문자열 생성 (사용자에게는 보이지 않음)
+ * 이름(실명)만으로 계정용 이메일 (로그인·가입 공통)
+ */
+export function buildAccountEmailFromName(legalName) {
+  const name = String(legalName || '').trim();
+  if (name.length < 2 || name.length > 24) {
+    throw new Error('INVALID_IDENTITY');
+  }
+  const h = hashIdentity(name, 'sisort_name_v2');
+  return `u_n_${h}@${DOMAIN}`;
+}
+
+/**
+ * @deprecated 구 가입(이름+생년) 계정 호환용 — 신규는 buildAccountEmailFromName 만 사용
  */
 export function buildAccountEmail(legalName, birthYyyymmdd) {
   const name = String(legalName || '').trim();

@@ -55,7 +55,7 @@ export default function PlayerHand({
             )}
             {!isPreparing && canReorder && (
               <span className="text-emerald-300/95 text-xs">
-                대기 중(아직 내 선두 차례가 아닐 때)에도 드래그로 순서를 맞출 수 있습니다.
+                플레이 중에도 손패가 2장 이상이면 언제든 드래그해 사전 순서에 맞출 수 있습니다.
               </span>
             )}
             {userHand.length > 1 && (

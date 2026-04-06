@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { isFirebaseConfigured } from '../lib/firebase.js';
 import { registerWithEmail, loginWithEmail } from '../lib/authService.js';
 import { createUserProfile, recordUserAccess } from '../lib/userProfileService.js';
-import { buildAccountEmail, pinToFirebasePassword } from '../lib/accountIdentity.js';
+import { buildAccountEmailFromName, pinToFirebasePassword } from '../lib/accountIdentity.js';
 import { safeSetItem } from '../utils/safeStorage.js';
+import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
 
 const GUEST_KEY = 'sisort_guest';
 
@@ -17,40 +18,6 @@ const tabBtn = (active, color) =>
       ? `${color} text-slate-950 shadow-lg scale-[1.02]`
       : 'bg-slate-800/80 text-slate-300 border border-slate-600/50 hover:bg-slate-700/80'
   }`;
-
-/** 생년월일 8자리(YYYYMMDD) 유효 여부 */
-function isValidBirthDate8(s) {
-  if (!/^\d{8}$/.test(s)) return false;
-  const y = Number(s.slice(0, 4));
-  const m = Number(s.slice(4, 6));
-  const d = Number(s.slice(6, 8));
-  if (y < 1900 || y > 2100) return false;
-  if (m < 1 || m > 12) return false;
-  const dt = new Date(y, m - 1, d);
-  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
-}
-
-/** 배경: 한글·학습 분위기 (가나다 + 따뜻한 그라데이션) */
-function AuthBackdrop() {
-  const row = '가나다라마바사아자차카타파하';
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden select-none" aria-hidden>
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1c1410] via-[#0f172a] to-[#1a1c2e]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(217,119,6,0.18),transparent)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_100%_100%,rgba(59,130,246,0.12),transparent)]" />
-      <div className="absolute inset-0 opacity-[0.06] text-[min(4.5rem,11vw)] font-black leading-[0.95] text-amber-100 tracking-tight">
-        {Array.from({ length: 12 }, (_, i) => (
-          <div key={i} className="whitespace-nowrap overflow-hidden text-center" style={{ opacity: 0.5 + (i % 3) * 0.15 }}>
-            {row.repeat(20)}
-          </div>
-        ))}
-      </div>
-      {/* 도장 느낌 원형 장식 */}
-      <div className="absolute -right-16 top-24 h-48 w-48 rounded-full border-4 border-red-800/20 bg-red-950/10 blur-[1px]" />
-      <div className="absolute -left-8 bottom-32 h-32 w-32 rounded-full border-2 border-amber-600/15" />
-    </div>
-  );
-}
 
 /** 상단 배지 + 타이틀 블록 */
 function AuthHeader({ subtitle }) {
@@ -81,15 +48,14 @@ function AuthHeader({ subtitle }) {
 }
 
 /**
- * 메인 로그인: 회원가입(이름 실명·생년월일·비밀번호 4자리) / 동일 조합 로그인 / 게스트
+ * 메인 로그인: 회원가입(이름·비밀번호 4자리) / 동일 조합 로그인 / 게스트
  */
 export default function AuthScreen({ onGuest, onLoggedIn }) {
   const [mode, setMode] = useState('login'); // login | register | guest
-  /** 가입·로그인 식별용 실명 (로비의 «표시 이름»과 별개로 쓸 수 있음) */
+  /** 가입·로그인 식별용 실명 */
   const [legalName, setLegalName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
-  const [birthDate8, setBirthDate8] = useState('');
   const [guestName, setGuestName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -99,11 +65,6 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     setErr('');
-    const bd = birthDate8.trim().replace(/\D/g, '');
-    if (bd.length !== 8 || !isValidBirthDate8(bd)) {
-      setErr('생년월일을 숫자 8자리(예: 20150315)로 올바르게 입력해 주세요.');
-      return;
-    }
     const real = legalName.trim();
     if (real.length < 2 || real.length > 24) {
       setErr('이름(실명)은 2~24자로 입력해 주세요.');
@@ -120,9 +81,9 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     }
     let internalEmail;
     try {
-      internalEmail = buildAccountEmail(real, bd);
+      internalEmail = buildAccountEmailFromName(real);
     } catch {
-      setErr('이름(실명)과 생년월일을 확인해 주세요.');
+      setErr('이름(실명)을 확인해 주세요.');
       return;
     }
     const firebasePw = pinToFirebasePassword(pin);
@@ -131,7 +92,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       const user = await registerWithEmail(internalEmail, firebasePw, real);
       await createUserProfile(user.uid, {
         email: user.email || internalEmail,
-        birthDate: bd,
+        birthDate: '',
         displayName: real,
       });
       safeSetItem('sisort_name', real);
@@ -140,7 +101,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     } catch (er) {
       const code = er?.code || '';
       if (code === 'auth/email-already-in-use') {
-        setErr('이미 같은 이름(실명)·생년월일로 가입된 계정입니다. 로그인해 주세요.');
+        setErr('이미 같은 이름으로 가입된 계정입니다. 로그인해 주세요.');
       } else if (code === 'auth/invalid-email') setErr('계정 식별에 실패했습니다. 이름을 확인해 주세요.');
       else if (code === 'auth/weak-password') setErr('비밀번호 처리에 실패했습니다.');
       else if (code === 'auth/operation-not-allowed') {
@@ -157,10 +118,9 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     e.preventDefault();
     setErr('');
     const real = legalName.trim();
-    const bd = birthDate8.trim().replace(/\D/g, '');
     const pin = password.replace(/\D/g, '');
-    if (real.length < 2 || bd.length !== 8 || !isValidBirthDate8(bd)) {
-      setErr('이름(실명, 2자 이상)과 생년월일 8자리를 확인해 주세요.');
+    if (real.length < 2) {
+      setErr('이름(실명)은 2자 이상 입력해 주세요.');
       return;
     }
     if (pin.length !== 4) {
@@ -169,9 +129,9 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     }
     let internalEmail;
     try {
-      internalEmail = buildAccountEmail(real, bd);
+      internalEmail = buildAccountEmailFromName(real);
     } catch {
-      setErr('이름(실명)과 생년월일을 확인해 주세요.');
+      setErr('이름(실명)을 확인해 주세요.');
       return;
     }
     setBusy(true);
@@ -185,7 +145,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     } catch (er) {
       const code = er?.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setErr('이름(실명)·생년월일·비밀번호(4자리)를 확인해 주세요.');
+        setErr('이름(실명)·비밀번호(4자리)를 확인해 주세요.');
       } else if (code === 'auth/invalid-email') setErr('로그인 정보를 확인해 주세요.');
       else if (code === 'auth/operation-not-allowed') {
         setErr(
@@ -211,7 +171,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
 
   const shell = (children, subtitle) => (
     <div className="relative min-h-screen overflow-x-hidden text-slate-100">
-      <AuthBackdrop />
+      <KoreanThemeBackdrop />
       <div className="relative z-10 mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10 pb-14">
         <div className="animate-fade-in rounded-3xl border border-amber-500/20 bg-slate-900/75 p-6 shadow-2xl shadow-black/40 backdrop-blur-md md:p-8">
           <AuthHeader subtitle={subtitle} />
@@ -256,7 +216,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   return shell(
     <>
       <p className="mb-6 text-center text-sm leading-relaxed text-slate-400 break-keep">
-        회원은 <strong className="text-amber-200/95">이름(실명)</strong>·생년월일·숫자 비밀번호 4자리만 받습니다(이메일 입력 없음). 같은 실명·생일 조합은 한 계정만 만들 수 있습니다. 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
+        회원은 <strong className="text-amber-200/95">이름(실명)</strong>과 숫자 비밀번호 4자리만 받습니다(이메일 입력 없음). 같은 이름은 한 계정만 만들 수 있습니다. 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
       </p>
 
       <div className="mb-6 flex flex-wrap justify-center gap-2">
@@ -292,16 +252,6 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
           />
           <input
             inputMode="numeric"
-            autoComplete="bday"
-            value={birthDate8}
-            onChange={(e) => setBirthDate8(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="생년월일 8자리 (YYYYMMDD)"
-            maxLength={8}
-            className={`${inputBase} tracking-widest`}
-            required
-          />
-          <input
-            inputMode="numeric"
             type="password"
             autoComplete="current-password"
             value={password}
@@ -332,17 +282,6 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
             className={inputBase}
             required
           />
-          <input
-            inputMode="numeric"
-            autoComplete="bday"
-            value={birthDate8}
-            onChange={(e) => setBirthDate8(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="생년월일 8자리 (YYYYMMDD)"
-            maxLength={8}
-            className={`${inputBase} tracking-widest`}
-            required
-          />
-          <p className="text-center text-[11px] text-slate-500 -mt-1">예: 20150315</p>
           <input
             inputMode="numeric"
             type="password"

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import DraggablePanel from './DraggablePanel.jsx';
 
 const OPPONENT_STYLES = [
@@ -32,6 +32,15 @@ export default function PlayArea({
   mySlotIndex,
   hintActorName = '',
 }) {
+  /** 순서에 맞게 제출될 때마다 중앙 카드에 짧은 초록 이펙트 */
+  const [correctFx, setCorrectFx] = useState(false);
+  useEffect(() => {
+    if (!lastPlayed) return undefined;
+    setCorrectFx(true);
+    const t = setTimeout(() => setCorrectFx(false), 700);
+    return () => clearTimeout(t);
+  }, [lastPlayed, lastPlayed?.id]);
+
   /* 레벨 클리어 복습 단계: 모바일에서 제출 스택·손패·중앙 카드 등이 보이면 퀴즈 정답이 노출됨 → 영역 전체 숨김 */
   const hideAllDuringMobileReview =
     gameState === 'level_clear' ? 'max-md:hidden' : '';
@@ -87,7 +96,7 @@ export default function PlayArea({
           <div
             className={`absolute inset-0 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-4 text-center animate-bounce-short border-4 ${
               parseSlot(lastPlayed.owner) === mySlotIndex ? 'border-blue-400' : 'border-purple-400'
-            }`}
+            } ${correctFx ? 'animate-correct-play' : ''}`}
           >
             <span className="text-4xl sm:text-5xl font-black text-slate-800 mb-2">{lastPlayed.word}</span>
             <span className="text-xs sm:text-sm text-slate-600 font-medium break-keep">{lastPlayed.desc}</span>
