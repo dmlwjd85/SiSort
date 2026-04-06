@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ReviewMeaningQuiz from './ReviewMeaningQuiz.jsx';
 
 /**
  * 레벨 클리어 / 게임 오버 / 최종 승리 모달
@@ -14,6 +15,8 @@ export default function ResultModal({
   setGameState,
   onGoLobby,
 }) {
+  const [quizCard, setQuizCard] = useState(null);
+
   if (gameState !== 'level_clear' && gameState !== 'game_over' && gameState !== 'victory') return null;
 
   return (
@@ -27,39 +30,46 @@ export default function ResultModal({
           <div className="w-full bg-slate-800 rounded-xl p-4 mb-6 max-h-[45vh] overflow-y-auto border border-slate-600">
             <h3 className="text-lg font-bold text-white mb-2 text-center border-b border-slate-700 pb-2">이번 레벨 완성 사전</h3>
             <p className="text-xs text-yellow-400 text-center mb-3 break-keep">
-              모든 단어를 터치하여 뜻을 복습해야 다음 레벨로 갈 수 있습니다! ({reviewedWords.length}/{allCards.length})
+              단어를 누르면 뜻 3지선다가 열립니다. 정답을 고르면 복습 완료입니다. ({reviewedWords.length}/{allCards.length})
             </p>
             <ul className="space-y-2">
-              {allCards.sort((a, b) => a.rank - b.rank).map((c, i) => {
-                const isReviewed = reviewedWords.includes(c.id);
-                return (
-                  <li
-                    key={c.id}
-                    onClick={() => {
-                      if (!isReviewed) setReviewedWords(prev => [...prev, c.id]);
-                    }}
-                    className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                      isReviewed ? 'bg-blue-900/40 border-2 border-blue-400 shadow-inner' : 'bg-slate-700/50 hover:bg-slate-700 border-2 border-transparent'
-                    }`}
-                  >
-                    <span className={`${isReviewed ? 'bg-blue-500' : 'bg-slate-600'} text-white text-xs font-bold px-2 py-1 rounded min-w-[24px] text-center transition-colors shrink-0 mt-1`}>
-                      {i + 1}
-                    </span>
-
-                    <div className="flex-1 break-words leading-relaxed">
-                      <span className={`font-bold text-xl transition-colors ${isReviewed ? 'text-blue-300' : 'text-white'}`}>
-                        {c.word}
+              {allCards
+                .sort((a, b) => a.rank - b.rank)
+                .map((c, i) => {
+                  const isReviewed = reviewedWords.includes(c.id);
+                  return (
+                    <li
+                      key={c.id}
+                      onClick={() => {
+                        if (isReviewed) return;
+                        setQuizCard(c);
+                      }}
+                      className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
+                        isReviewed
+                          ? 'bg-blue-900/40 border-2 border-blue-400 shadow-inner cursor-default'
+                          : 'bg-slate-700/50 hover:bg-slate-700 border-2 border-transparent cursor-pointer'
+                      }`}
+                    >
+                      <span
+                        className={`${isReviewed ? 'bg-blue-500' : 'bg-slate-600'} text-white text-xs font-bold px-2 py-1 rounded min-w-[24px] text-center transition-colors shrink-0 mt-1`}
+                      >
+                        {i + 1}
                       </span>
 
-                      {isReviewed && (
-                        <span className="ml-2 text-base text-yellow-200 bg-slate-800/80 px-2 py-1 rounded-md animate-fade-in inline-block border border-yellow-500/30">
-                          ✨ {c.desc}
+                      <div className="flex-1 break-words leading-relaxed">
+                        <span className={`font-bold text-xl transition-colors ${isReviewed ? 'text-blue-300' : 'text-white'}`}>
+                          {c.word}
                         </span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+
+                        {isReviewed && (
+                          <span className="ml-2 text-base text-yellow-200 bg-slate-800/80 px-2 py-1 rounded-md animate-fade-in inline-block border border-yellow-500/30">
+                            ✨ {c.desc}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
             </ul>
           </div>
 
@@ -106,6 +116,18 @@ export default function ResultModal({
             로비로
           </button>
         </div>
+      )}
+
+      {quizCard && (
+        <ReviewMeaningQuiz
+          card={quizCard}
+          allCards={allCards}
+          onCorrect={() => {
+            setReviewedWords((prev) => (prev.includes(quizCard.id) ? prev : [...prev, quizCard.id]));
+            setQuizCard(null);
+          }}
+          onClose={() => setQuizCard(null)}
+        />
       )}
     </div>
   );

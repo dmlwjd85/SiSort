@@ -1,5 +1,10 @@
 import { parsePack } from '../utils/helpers.js';
 import { grade6socialPack } from './wordsGrade6Social.js';
+import {
+  sajaseongeoBeginnerPack,
+  sajaseongeoIntermediatePack,
+  sajaseongeoAdvancedPack,
+} from './wordsSajaseongeoPacks.js';
 
 // --- 학년별 단어 데이터베이스 팩 ---
 // 유치원 50개부터 6학년 100개까지 10개씩 증가하며 총 550개의 단어가 담겨 있습니다.
@@ -225,4 +230,7 @@ export const PACK_DATA = {
     ])
   },
   grade6social: grade6socialPack,
+  sajaseongeo_beginner: sajaseongeoBeginnerPack,
+  sajaseongeo_intermediate: sajaseongeoIntermediatePack,
+  sajaseongeo_advanced: sajaseongeoAdvancedPack,
 };
