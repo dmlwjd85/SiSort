@@ -20,10 +20,6 @@ export default function ResultModal({
   gameOverExplain = null,
 }) {
   const [quizCard, setQuizCard] = useState(null);
-  /** 복습 준비(10초) — 끝나거나 버튼으로 바로 시작 */
-  const [reviewPrepDone, setReviewPrepDone] = useState(false);
-  /** 복습 전에 단어를 떠올릴 생각할 시간(초) — 버튼으로 바로 넘어갈 수 있음 */
-  const [reviewPrepLeft, setReviewPrepLeft] = useState(15);
   const lastFanfareLevelRef = useRef(null);
 
   /** 이번 레벨에서 복습할 카드: 1레벨 1장 … N레벨 N장(상한: 이번 레벨 카드 수) 무작위 추출 */
@@ -48,65 +44,22 @@ export default function ResultModal({
 
   useEffect(() => {
     if (gameState !== 'level_clear') return;
-    setReviewPrepDone(false);
-    setReviewPrepLeft(15);
     setQuizCard(null);
   }, [gameState, level]);
 
+  /** 레벨 클리어 본화면 진입 시 빵파레·박수 — 레벨당 1회 */
   useEffect(() => {
-    if (gameState !== 'level_clear' || reviewPrepDone) return;
-    if (reviewPrepLeft <= 0) {
-      setReviewPrepDone(true);
-      return;
-    }
-    const t = setTimeout(() => setReviewPrepLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [gameState, reviewPrepDone, reviewPrepLeft]);
-
-  /** 복습 준비가 끝나 클리어 본화면(🎉)으로 들어갈 때 빵파레·박수 — 레벨당 1회 */
-  useEffect(() => {
-    if (gameState !== 'level_clear' || !reviewPrepDone) return;
+    if (gameState !== 'level_clear') return;
     if (lastFanfareLevelRef.current === level) return;
     lastFanfareLevelRef.current = level;
     playLevelClearCelebration();
-  }, [gameState, reviewPrepDone, level]);
+  }, [gameState, level]);
 
   if (gameState !== 'level_clear' && gameState !== 'game_over' && gameState !== 'victory') return null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-y-auto bg-slate-900/80 p-4 backdrop-blur-sm">
-      {gameState === 'level_clear' && !reviewPrepDone && (
-        <div className="pointer-events-auto fixed inset-0 z-[105] flex items-center justify-center bg-slate-950/92 p-4 backdrop-blur-sm">
-          <DraggablePanel className="w-full max-w-md rounded-2xl border border-amber-600/50 bg-slate-900/95 p-4 md:p-6 shadow-2xl text-center">
-            <h3 className="text-base md:text-lg font-bold text-amber-200 mb-2 break-keep">
-              <span className="md:hidden">복습 전</span>
-              <span className="hidden md:inline">복습 전 생각할 시간</span>
-            </h3>
-            <div className="md:hidden flex flex-wrap items-center justify-center gap-2 mb-3 text-[11px] text-slate-300">
-              <span className="rounded-lg bg-amber-500/15 text-amber-200 px-2 py-0.5 border border-amber-500/30 font-mono">
-                Lv.{level}
-              </span>
-              <span className="text-slate-500">·</span>
-              <span className="rounded-lg bg-slate-700 px-2 py-0.5">무작위 {reviewOrder.length}개</span>
-            </div>
-            <p className="hidden md:block text-sm text-slate-400 mb-4 break-keep">
-              이번 레벨 단어를 떠올려 보세요. 레벨 {level}에서는 무작위로 {reviewOrder.length}개만 복습합니다. 아래를 누르면
-              바로 복습 화면으로 넘어갑니다.
-            </p>
-            <div className="text-5xl md:text-6xl font-black text-white tabular-nums mb-4 md:mb-6">{reviewPrepLeft}</div>
-            <button
-              type="button"
-              onClick={() => setReviewPrepDone(true)}
-              className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-3 md:py-3.5 font-bold text-base md:text-lg text-white shadow-lg"
-            >
-              <span className="md:hidden">▶ 복습으로</span>
-              <span className="hidden md:inline">준비 완료 · 바로 시작</span>
-            </button>
-          </DraggablePanel>
-        </div>
-      )}
-
-      {gameState === 'level_clear' && reviewPrepDone && (
+      {gameState === 'level_clear' && (
         <div className="pointer-events-auto max-w-2xl w-full flex flex-col items-center">
           <DraggablePanel className="w-full max-w-2xl rounded-2xl border border-slate-600 bg-slate-900/95 p-4 shadow-2xl">
           <div className="text-6xl mb-4">🎉</div>
@@ -256,7 +209,7 @@ export default function ResultModal({
         </div>
       )}
 
-      {quizCard && reviewPrepDone && (
+      {quizCard && (
         <ReviewMeaningQuiz
           card={quizCard}
           allCards={allCards}

@@ -21,6 +21,8 @@ import {
   writeCachedUserPackState,
   clearCachedUserPackState,
 } from './lib/userProfileService.js';
+import { getNextPackKey } from './lib/packOrder.js';
+import { PACK_DATA } from './data/words.js';
 
 const GUEST_KEY = 'sisort_guest';
 
@@ -38,6 +40,8 @@ export default function App() {
   const [statsOpen, setStatsOpen] = useState(false);
   /** 차단 계정 로그인 시도 후 로그인 화면에 표시 */
   const [authNotice, setAuthNotice] = useState('');
+  /** 해당 팩에서 처음 7레벨 클리어로 다음 팩이 열렸을 때 축하 */
+  const [packUnlockCelebrate, setPackUnlockCelebrate] = useState(null);
   /** 마스터·관리자 권한(기록 조회, 회원별 잠금 해제 등) */
   const [adminCaps, setAdminCaps] = useState(() => ({
     isAdmin: false,
@@ -51,12 +55,20 @@ export default function App() {
     async (packKey, clearedLevel, meta) => {
       if (guestMode || !authUser?.uid) return;
       if (!meta?.eligible) return;
+      const prevMax = Number(packProgress[packKey]) || 0;
       try {
         await updatePackProgressRemote(authUser.uid, packKey, clearedLevel);
         const st = await fetchUserPackState(authUser.uid);
         setPackProgress(st.packProgress || {});
         setPackUnlockBonus(st.packUnlockBonus || []);
         writeCachedUserPackState(authUser.uid, st);
+        const newMax = Number((st.packProgress || {})[packKey]) || 0;
+        if (clearedLevel === 7 && prevMax < 7 && newMax >= 7) {
+          const nextKey = getNextPackKey(packKey);
+          if (nextKey && PACK_DATA[nextKey]) {
+            setPackUnlockCelebrate({ name: PACK_DATA[nextKey].name, key: nextKey });
+          }
+        }
         await recordEligibleLevelClear(authUser.uid, packKey, clearedLevel);
         const name =
           safeGetItem('sisort_name', '') ||
@@ -68,7 +80,7 @@ export default function App() {
         console.error('[onLevelCleared]', e);
       }
     },
-    [guestMode, authUser]
+    [guestMode, authUser, packProgress]
   );
 
   const game = useSilentDictionaryGame({
@@ -288,6 +300,34 @@ export default function App() {
 
   const isGuestUi = !firebaseOk || guestMode || !authUser;
 
+  /** 다음 팩 해금 축하 — 플레이·로비 모두에서 표시(레벨 클리어 직후 로비로 나가도 유지) */
+  const packUnlockOverlay =
+    packUnlockCelebrate && (
+      <div
+        className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm pointer-events-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pack-unlock-title"
+      >
+        <div className="w-full max-w-md rounded-2xl border border-emerald-500/50 bg-slate-900/98 p-6 shadow-2xl text-center">
+          <div className="text-5xl mb-3">🎊</div>
+          <h2 id="pack-unlock-title" className="text-xl md:text-2xl font-black text-emerald-300 mb-2">
+            다음 팩 해금!
+          </h2>
+          <p className="text-slate-200 mb-6 break-keep">
+            <span className="font-bold text-white">{packUnlockCelebrate.name}</span> 팩을 플레이할 수 있습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => setPackUnlockCelebrate(null)}
+            className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3 font-bold text-white shadow-lg"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    );
+
   if (phase === 'lobby') {
     return (
       <>
@@ -325,6 +365,7 @@ export default function App() {
           currentUid={authUser?.uid}
         />
         <MyStatsModal open={statsOpen} onClose={() => setStatsOpen(false)} uid={authUser?.uid} />
+        {packUnlockOverlay}
       </>
     );
   }
@@ -338,6 +379,7 @@ export default function App() {
         capabilities={adminCaps}
         currentUid={authUser?.uid}
       />
+      {packUnlockOverlay}
     </>
   );
 }

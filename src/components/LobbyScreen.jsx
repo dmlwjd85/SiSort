@@ -643,7 +643,7 @@ export default function LobbyScreen({
         <h3 className="text-yellow-400 font-bold mb-2">단어 수준</h3>
         <p className="text-[11px] text-slate-500 mb-2 break-keep">
           {!isGuest &&
-            '회원: 유치원 팩부터 시작합니다. 이전 팩 8레벨 클리어 시 다음 팩이 열립니다. 진행도·기록 반영은 오프라인에서 나+가상 1명 방 조건일 때만 됩니다.'}
+            '회원: 유치원 팩부터 시작합니다. 이전 팩 7레벨 클리어 시 다음 팩이 열립니다. 진행도·기록 반영은 오프라인에서 나+가상 1명 방 조건일 때만 됩니다.'}
         </p>
         {mode === 'online' && roomId && (
           <p className="text-[11px] text-emerald-300/90 mb-2 break-keep">
@@ -657,7 +657,7 @@ export default function LobbyScreen({
               <button
                 key={key}
                 type="button"
-                title={locked ? '이전 팩 8레벨 클리어 시 해제 (게스트는 유치원·6학년 사회만)' : pack.name}
+                title={locked ? '이전 팩 7레벨 클리어 시 해제 (게스트는 유치원·6학년 사회만)' : pack.name}
                 onClick={() => {
                   if (locked) return;
                   if (mode === 'online' && isHost && onlineOk) void syncPackOnline(key);

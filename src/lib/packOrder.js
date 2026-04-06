@@ -1,7 +1,7 @@
 import { PACK_DATA } from '../data/words.js';
 
 /**
- * 팩 잠금 해제 순서 (이전 팩에서 8레벨 클리어 시 다음 팩 오픈)
+ * 팩 잠금 해제 순서 (이전 팩에서 7레벨 클리어 시 다음 팩 오픈)
  * PACK_DATA에 없는 키는 제외
  */
 export const PACK_UNLOCK_ORDER = [
@@ -18,7 +18,7 @@ export const PACK_UNLOCK_ORDER = [
   'sajaseongeo_advanced',
 ].filter((k) => PACK_DATA[k]);
 
-const UNLOCK_THRESHOLD = 8;
+const UNLOCK_THRESHOLD = 7;
 
 /**
  * @param {{ isGuest: boolean, packProgress?: Record<string, number>, packUnlockBonus?: string[] }} opts
@@ -61,4 +61,16 @@ export function getUnlockedPackKeys({ isGuest, packProgress = {}, packUnlockBonu
 /** 팩이 잠금인지 (회원 기준) */
 export function isPackLocked(packKey, { isGuest, packProgress, packUnlockBonus }) {
   return !getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus }).has(packKey);
+}
+
+/**
+ * 현재 팩 키의 다음 팩 키 (없으면 null)
+ * @param {string} currentPackKey
+ * @returns {string|null}
+ */
+export function getNextPackKey(currentPackKey) {
+  const i = PACK_UNLOCK_ORDER.indexOf(currentPackKey);
+  if (i < 0 || i >= PACK_UNLOCK_ORDER.length - 1) return null;
+  const next = PACK_UNLOCK_ORDER[i + 1];
+  return PACK_DATA[next] ? next : null;
 }

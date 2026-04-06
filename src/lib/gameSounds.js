@@ -22,16 +22,27 @@ export function resumeAudioContext() {
   }
 }
 
-/** C4 기준 장음정(도레미파솔라시도…) 반복 — 순서 인덱스는 모듈 내부 */
+/** 낮은 도(C3) 기준 장음정(도레미파솔라시…) 반복 — 순서 인덱스는 모듈 내부 */
 let correctNoteIndex = 0;
 
-/** C4에서 장2도까지 도레미파솔라시도 레미… (반복 시 다시 낮은 도부터) */
-const MAJOR_SCALE_SEMITONES = [
-  0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28, 30, 32, 33, 35, 36, 38, 40,
-];
+/** 낮은 도부터 3옥타브: 각 옥타브 도~시 + 마지막 최고 도(C6) — 반복 시 다시 낮은 도부터 */
+const MAJOR_DEGREES = [0, 2, 4, 5, 7, 9, 11];
+const MAJOR_SCALE_SEMITONES = (() => {
+  const arr = [];
+  for (let oct = 0; oct < 3; oct++) {
+    for (const d of MAJOR_DEGREES) {
+      arr.push(oct * 12 + d);
+    }
+  }
+  arr.push(36); // C6 (C3으로부터 정확히 3옥타브 위의 도)
+  return arr;
+})();
 
-function freqFromSemitones(st) {
-  return 261.63 * 2 ** (st / 12);
+/** C3(낮은 도)를 0반음으로 하는 반음 오프셋 → 주파수 */
+const C3_HZ = 130.813;
+
+function freqFromSemitonesFromC3(st) {
+  return C3_HZ * 2 ** (st / 12);
 }
 
 function beep(freq, durationSec, type = 'triangle', gain = 0.14, when = 0) {
@@ -56,7 +67,7 @@ function beep(freq, durationSec, type = 'triangle', gain = 0.14, when = 0) {
 export function playCorrectPlacedNote() {
   resumeAudioContext();
   const st = MAJOR_SCALE_SEMITONES[correctNoteIndex % MAJOR_SCALE_SEMITONES.length];
-  const f = freqFromSemitones(st);
+  const f = freqFromSemitonesFromC3(st);
   beep(f, 0.11, 'triangle', 0.13);
   correctNoteIndex += 1;
 }
