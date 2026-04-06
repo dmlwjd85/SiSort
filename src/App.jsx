@@ -112,34 +112,58 @@ export default function App() {
           return;
         }
       }
+      /* Firestore 팩·권한 조회는 아래 useEffect로 분리 — 마스터 등 로그인 직후 화면이 멈춘 것처럼 보이지 않게 */
       setAuthUser(u ?? null);
-      if (u) {
-        setAuthNotice('');
-        setGuestMode(false);
-        safeSetItem(GUEST_KEY, '0');
-        setPlayerIdFromAuth(u.uid);
-        const st = await fetchUserPackState(u.uid);
+    });
+  }, []);
+
+  const defaultAdminCaps = useMemo(
+    () => ({
+      isAdmin: false,
+      master: false,
+      viewRecords: false,
+      unlockMembers: false,
+      showAdminPanel: false,
+    }),
+    []
+  );
+
+  useEffect(() => {
+    if (!authUser?.uid) {
+      setPackProgress({});
+      setPackUnlockBonus([]);
+      setAdminCaps(defaultAdminCaps);
+      return undefined;
+    }
+    setAuthNotice('');
+    setGuestMode(false);
+    safeSetItem(GUEST_KEY, '0');
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const st = await fetchUserPackState(authUser.uid);
+        if (cancelled) return;
         setPackProgress(st.packProgress || {});
         setPackUnlockBonus(st.packUnlockBonus || []);
-        const name = u.displayName || u.email?.split('@')[0] || '';
+        const name = authUser.displayName || authUser.email?.split('@')[0] || '';
         if (name) {
           safeSetItem('sisort_name', name);
           setPlayerName(name);
         }
-        setAdminCaps(await fetchAdminCapabilities(u));
-      } else {
-        setPackProgress({});
-        setPackUnlockBonus([]);
-        setAdminCaps({
-          isAdmin: false,
-          master: false,
-          viewRecords: false,
-          unlockMembers: false,
-          showAdminPanel: false,
-        });
+        const caps = await fetchAdminCapabilities(authUser);
+        if (cancelled) return;
+        setAdminCaps(caps);
+      } catch (e) {
+        console.error('[authUser profile]', e);
+        if (!cancelled) setAdminCaps(defaultAdminCaps);
       }
-    });
-  }, []);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser, defaultAdminCaps]);
 
   const onLeaveLobby = async () => {
     if (game.netRoom?.db && game.netRoom?.roomId) {

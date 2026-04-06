@@ -135,18 +135,14 @@ export default function PlayArea({
             {sortedPlayedStack.length}/{allCards.length}
           </span>
         </h3>
-        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 -mx-0.5 px-0.5 scrollbar-thin scrollbar-thumb-slate-600">
+        <div className="flex flex-wrap gap-1 sm:gap-1.5 content-start max-h-24 sm:max-h-none overflow-y-auto sm:overflow-x-auto sm:overflow-y-visible pb-1 -mx-0.5 px-0.5 scrollbar-thin scrollbar-thumb-slate-600">
           {sortedPlayedStack.map((card) => (
-            <div
+            <span
               key={card.id}
-              className="min-w-[4.5rem] sm:min-w-[100px] bg-slate-700/90 rounded-lg p-1.5 sm:p-2 flex flex-col justify-between shrink-0 border border-slate-600/80"
+              className="inline-flex items-center rounded-md bg-slate-700/90 px-1.5 py-0.5 text-xs sm:text-sm font-semibold text-white border border-slate-600/80 shrink-0"
             >
-              <div className="text-sm sm:text-lg font-bold text-white text-center border-b border-slate-600/80 pb-0.5 mb-0.5 leading-tight">
-                {card.word}
-              </div>
-              <div className="hidden sm:block text-[10px] text-slate-300 text-center leading-tight line-clamp-2">{card.desc}</div>
-              <div className="text-[8px] sm:text-[9px] text-slate-500 text-center mt-0.5 sm:mt-1 tabular-nums">#{card.rank + 1}</div>
-            </div>
+              {card.word}
+            </span>
           ))}
           {sortedPlayedStack.length === 0 && (
             <div className="text-slate-500 py-1.5 w-full text-center md:italic text-[10px] md:text-sm">

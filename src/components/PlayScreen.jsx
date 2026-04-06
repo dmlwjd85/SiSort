@@ -45,7 +45,7 @@ export default function PlayScreen(props) {
   } = props;
 
   return (
-    <div className="h-[100dvh] min-h-0 bg-slate-900 text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="min-h-[100dvh] bg-slate-900 text-slate-100 flex flex-col font-sans overflow-x-hidden overflow-y-auto lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden">
       <GameHeader
         setGameState={setGameState}
         startGame={startGame}
@@ -62,8 +62,9 @@ export default function PlayScreen(props) {
         isPreparing={isPreparing}
       />
 
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 min-w-0">
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+      <div className="flex flex-col lg:flex-1 lg:flex-row lg:min-h-0 min-w-0">
+        {/* 모바일: 첫 화면에서 게임 테이블이 손패에 가려지지 않도록 플레이 영역 최소 높이 확보 — 손패는 아래로 스크롤 */}
+        <div className="flex flex-col w-full min-w-0 max-lg:flex-none max-lg:min-h-[min(52dvh,560px)] lg:flex-1 lg:min-h-0 lg:overflow-hidden">
           <PlayArea
             gameState={gameState}
             opponentSlots={opponentSlots}
@@ -87,8 +88,8 @@ export default function PlayScreen(props) {
         <div
           className={
             gameState === 'level_clear'
-              ? 'max-md:hidden shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end'
-              : 'shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end min-h-0 border-t lg:border-t-0 lg:border-l border-slate-700/60'
+              ? 'max-md:hidden w-full shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end'
+              : 'w-full shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end lg:min-h-0 max-lg:border-0 lg:border-l border-slate-700/60'
           }
         >
           <PlayerHand
