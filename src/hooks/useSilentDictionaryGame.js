@@ -181,7 +181,7 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
     timeLeft: currentLevelTime,
     usedWords: usedWordsNext,
     isPreparing: true,
-    prepTimeLeft: 5,
+    prepTimeLeft: 15,
     gameState: 'playing',
     /** 풀의 모든 단어를 한 번씩 쓴 뒤 다시 무작위로 뽑기 시작한 레벨 */
     exhaustionCycle: pickedFromFullPoolCycle,
@@ -219,7 +219,7 @@ export function useSilentDictionaryGame(options = {}) {
   const [showWordList, setShowWordList] = useState(false);
 
   const [isPreparing, setIsPreparing] = useState(false);
-  const [prepTimeLeft, setPrepTimeLeft] = useState(5);
+  const [prepTimeLeft, setPrepTimeLeft] = useState(15);
 
   const [selectedPackKey, setSelectedPackKey] = useState('kindergarten');
   const currentWordDB = PACK_DATA[selectedPackKey]?.words ?? PACK_DATA.kindergarten.words;
@@ -404,7 +404,7 @@ export function useSilentDictionaryGame(options = {}) {
       setReviewedWords(Array.isArray(g.reviewedWords) ? g.reviewedWords : []);
       setIsPreparing(Boolean(g.isPreparing));
       setPrepTimeLeft(
-        Math.min(60, Math.max(0, Number.isFinite(Number(g.prepTimeLeft)) ? Math.floor(Number(g.prepTimeLeft)) : 5))
+        Math.min(60, Math.max(0, Number.isFinite(Number(g.prepTimeLeft)) ? Math.floor(Number(g.prepTimeLeft)) : 15))
       );
       setAllCards(safeCards);
       setPlayedStack(safeStack);
@@ -495,14 +495,13 @@ export function useSilentDictionaryGame(options = {}) {
     }, 2000);
   }, [level, startLevel]);
 
-  /* 실수로 손패가 비고 폐기만 남음: 생명이 남았으면 레벨 클리어, 없으면 같은 레벨 재시작 */
+  /* 손패가 모두 처리됨(제출·폐기): 생명 남으면 레벨 클리어, 없으면 재시작 — 폐기 여부와 무관(실패 후 손패만 비어도 진행) */
   useEffect(() => {
     if (gameState !== 'playing' || isPreparing) return;
     const cards = allCards;
     if (cards.length === 0) return;
     const unplayed = cards.filter((c) => c.status === 'hand');
-    const hasDiscarded = cards.some((c) => c.status === 'discarded');
-    if (unplayed.length !== 0 || !hasDiscarded) return;
+    if (unplayed.length !== 0) return;
     if (failedRoundRecoveryRef.current) return;
     if (livesRef.current > 0) {
       failedRoundRecoveryRef.current = true;
@@ -1125,15 +1124,14 @@ export function useSilentDictionaryGame(options = {}) {
     });
   }, [netRoom, mySlotIndex, applyRemotePlay]);
 
-  /** 살펴보기 중이거나, 플레이 중 손패가 2장 이상이면 언제든 순서 변경 가능(선두 차례 포함) */
+  /** 살펴보기·플레이·일시정지·길라잡이 관계없이 손패 2장 이상이면 드래그 정렬 허용 */
   const canReorderHand = useMemo(() => {
-    if (isHintMode || isPaused) return false;
     if (isPreparing) return true;
     if (gameState !== 'playing') return false;
     const key = slotOwner(mySlotIndex);
     const cnt = allCards.filter((c) => c.owner === key && c.status === 'hand').length;
     return cnt > 1;
-  }, [isPreparing, gameState, isHintMode, isPaused, allCards, mySlotIndex]);
+  }, [isPreparing, gameState, allCards, mySlotIndex]);
 
   /** 손패 순서 변경(온라인 게스트는 호스트로 전달) */
   const reorderMyHand = useCallback(

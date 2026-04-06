@@ -170,8 +170,13 @@ export default function PlayArea({
                 내 카드를 확인하고 순서를 예상하세요!
               </h2>
               <p className="text-center text-[11px] text-slate-500 mb-4">
-                창을 드래그해 둘러볼 수 있습니다. 카드는 아래 손패에서 정렬하세요.
+                아래 손패에서 카드를 <strong className="text-amber-200">드래그</strong>해 순서를 바꿀 수 있습니다.
               </p>
+              {prepTimeLeft === 10 && (
+                <p className="text-center text-sm font-bold text-sky-300 animate-pulse border border-sky-500/40 rounded-lg py-2 px-3 bg-sky-950/50">
+                  ⏱ 남은 시간 10초 — 손패를 사전 순에 맞게 정리하세요.
+                </p>
+              )}
             </DraggablePanel>
           </div>
 
@@ -187,7 +192,20 @@ export default function PlayArea({
             ))}
           </div>
 
-          <div className="pointer-events-none text-7xl sm:text-8xl font-black text-white drop-shadow-2xl">{prepTimeLeft}</div>
+          {prepTimeLeft <= 5 && prepTimeLeft >= 1 && (
+            <p className="pointer-events-none text-amber-200/95 text-sm font-bold mb-1 drop-shadow-lg">
+              곧 시작합니다
+            </p>
+          )}
+          <div
+            className={`pointer-events-none font-black drop-shadow-2xl tabular-nums ${
+              prepTimeLeft <= 5 && prepTimeLeft >= 1
+                ? 'text-8xl sm:text-9xl animate-pulse text-amber-300'
+                : 'text-7xl sm:text-8xl text-white'
+            }`}
+          >
+            {prepTimeLeft}
+          </div>
         </div>
       )}
     </div>
