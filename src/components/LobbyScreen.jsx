@@ -51,6 +51,8 @@ export default function LobbyScreen({
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const guestPlayStartedRef = useRef(false);
+  /** 이 방 스냅샷에서 한 번이라도 members에 본인 playerId가 있었는지 — 캐시·레이스로 빈 목록이 먼저 오면 추방 오인 방지 */
+  const seenSelfInMembersRef = useRef(false);
   const [showNameEdit, setShowNameEdit] = useState(false);
   const [nameDraft, setNameDraft] = useState(playerName);
 
@@ -64,6 +66,7 @@ export default function LobbyScreen({
 
   useEffect(() => {
     guestPlayStartedRef.current = false;
+    seenSelfInMembersRef.current = false;
   }, [roomId]);
 
   useEffect(() => {
@@ -95,11 +98,20 @@ export default function LobbyScreen({
       }
       const data = { id: snap.id, ...snap.data() };
       const list = Array.isArray(data.members) ? data.members : [];
+      const memberIsSelf = (m) =>
+        m && m.playerId != null && String(m.playerId) === String(playerId);
+      const inList = list.some(memberIsSelf);
+      if (inList) seenSelfInMembersRef.current = true;
+
+      const isRoomHostDoc = data.hostId != null && String(data.hostId) === String(playerId);
+      /* 실제 추방: 이전에 본인이 목록에 있었는데 로비에서 빠진 경우만 (참가 직후 레이스·캐시 오인 제거) */
       if (
         roomId &&
         data.phase === 'lobby' &&
         list.length > 0 &&
-        !list.some((m) => m && m.playerId === playerId)
+        !inList &&
+        seenSelfInMembersRef.current &&
+        !isRoomHostDoc
       ) {
         setErr('방에서 추방되었습니다.');
         setRoomId(null);
@@ -111,12 +123,14 @@ export default function LobbyScreen({
       }
       setRemoteRoom(data);
       if (data.phase === 'playing' && !isHost && !guestPlayStartedRef.current) {
+        const myIdx = list.findIndex(memberIsSelf);
+        if (myIdx < 0) return;
         guestPlayStartedRef.current = true;
         joinOnlineAsGuest({
           db,
           roomId,
-          members: data.members || [],
-          mySlot: Math.max(0, data.members?.findIndex((m) => m.playerId === playerId) ?? 0),
+          members: list,
+          mySlot: myIdx,
           playerId,
           hostPlayerId: data.hostId,
         });
