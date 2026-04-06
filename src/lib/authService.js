@@ -60,6 +60,15 @@ export async function loginWithEmail(email, password) {
   return cred.user;
 }
 
+/** 로그인 후 표시 이름만 갱신(마스터 계정 등) */
+export async function updateUserDisplayName(user, displayName) {
+  const auth = getFirebaseAuth();
+  if (!auth || !user) return;
+  const t = String(displayName || '').trim();
+  if (!t) return;
+  await updateProfile(user, { displayName: t });
+}
+
 export async function logoutFirebase() {
   const auth = getFirebaseAuth();
   if (!auth) return;

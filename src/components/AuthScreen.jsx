@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { isFirebaseConfigured } from '../lib/firebase.js';
-import { registerWithEmail, loginWithEmail } from '../lib/authService.js';
-import { createUserProfile, recordUserAccess } from '../lib/userProfileService.js';
-import { buildAccountEmailFromName, pinToFirebasePassword } from '../lib/accountIdentity.js';
+import { registerWithEmail, loginWithEmail, updateUserDisplayName } from '../lib/authService.js';
+import { createUserProfile, recordUserAccess, fetchUserDocument } from '../lib/userProfileService.js';
+import {
+  buildAccountEmailFromName,
+  buildMasterAccountEmail,
+  masterPinToFirebasePassword,
+  normalizeAccountName,
+  pinToFirebasePassword,
+} from '../lib/accountIdentity.js';
 import { safeSetItem } from '../utils/safeStorage.js';
 import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
 
@@ -51,11 +57,14 @@ function AuthHeader({ subtitle }) {
  * 메인 로그인: 회원가입(이름·비밀번호 4자리) / 동일 조합 로그인 / 게스트
  */
 export default function AuthScreen({ onGuest, onLoggedIn }) {
-  const [mode, setMode] = useState('login'); // login | register | guest
+  const [mode, setMode] = useState('login'); // login | register | guest | master
   /** 가입·로그인 식별용 실명 */
   const [legalName, setLegalName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
+  /** 마스터: 첫 로그인 번호 6자리 + 비밀번호 6자리(Firebase에 동일 규칙으로 생성된 계정) */
+  const [masterFirstLogin, setMasterFirstLogin] = useState('');
+  const [masterPassword, setMasterPassword] = useState('');
   const [guestName, setGuestName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,7 +74,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     setErr('');
-    const real = legalName.trim();
+    const real = normalizeAccountName(legalName);
     if (real.length < 2 || real.length > 24) {
       setErr('이름(실명)은 2~24자로 입력해 주세요.');
       return;
@@ -83,7 +92,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     try {
       internalEmail = buildAccountEmailFromName(real);
     } catch {
-      setErr('이름(실명)을 확인해 주세요.');
+      setErr('이름 형식을 확인해 주세요. (가입 때와 같은 한글·띄어쓰기)');
       return;
     }
     const firebasePw = pinToFirebasePassword(pin);
@@ -117,12 +126,12 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErr('');
-    const real = legalName.trim();
-    const pin = password.replace(/\D/g, '');
+    const real = normalizeAccountName(legalName);
     if (real.length < 2) {
       setErr('이름(실명)은 2자 이상 입력해 주세요.');
       return;
     }
+    const pin = password.replace(/\D/g, '');
     if (pin.length !== 4) {
       setErr('비밀번호는 숫자 4자리입니다.');
       return;
@@ -131,7 +140,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     try {
       internalEmail = buildAccountEmailFromName(real);
     } catch {
-      setErr('이름(실명)을 확인해 주세요.');
+      setErr('이름 형식을 확인해 주세요. (가입 때와 같은 한글·띄어쓰기)');
       return;
     }
     setBusy(true);
@@ -145,13 +154,71 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
     } catch (er) {
       const code = er?.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setErr('이름(실명)·비밀번호(4자리)를 확인해 주세요.');
-      } else if (code === 'auth/invalid-email') setErr('로그인 정보를 확인해 주세요.');
-      else if (code === 'auth/operation-not-allowed') {
+        setErr(
+          '이름·비밀번호가 가입 때와 같은지 확인해 주세요. 예전(생년 포함) 방식으로 가입한 계정은 이름·숫자 4자리만으로 다시 회원가입해 주세요. / Check name & PIN match signup. Old accounts need to sign up again (name + 4 digits only).'
+        );
+      } else if (code === 'auth/invalid-email') {
+        setErr('로그인 정보 형식을 확인해 주세요. / Check your login fields.');
+      } else if (code === 'auth/operation-not-allowed') {
         setErr(
           'Firebase에서 이메일/비밀번호 로그인이 꺼져 있습니다. 콘솔 → Authentication → Sign-in method → 이메일/비밀번호를 켜 주세요.'
         );
       } else setErr(er?.message || '로그인에 실패했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleMasterLogin = async (e) => {
+    e.preventDefault();
+    setErr('');
+    const first = masterFirstLogin.replace(/\D/g, '');
+    const pin6 = masterPassword.replace(/\D/g, '');
+    if (first.length !== 6) {
+      setErr('마스터 «첫 로그인 번호»는 숫자 6자리입니다.');
+      return;
+    }
+    if (pin6.length !== 6) {
+      setErr('마스터 비밀번호는 숫자 6자리입니다.');
+      return;
+    }
+    let internalEmail;
+    try {
+      internalEmail = buildMasterAccountEmail(first);
+    } catch {
+      setErr('첫 로그인 번호 형식을 확인해 주세요.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const user = await loginWithEmail(internalEmail, masterPinToFirebasePassword(pin6));
+      await updateUserDisplayName(user, '마스터');
+      const existing = await fetchUserDocument(user.uid);
+      if (!existing) {
+        await createUserProfile(user.uid, {
+          email: user.email || internalEmail,
+          birthDate: '',
+          displayName: '마스터',
+        });
+      } else {
+        await recordUserAccess(user.uid);
+      }
+      safeSetItem('sisort_name', '마스터');
+      safeSetItem(GUEST_KEY, '0');
+      onLoggedIn(user);
+    } catch (er) {
+      const code = er?.code || '';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setErr(
+          '마스터 첫 로그인 번호·6자리 비밀번호가 Firebase에 등록된 값과 같은지 확인해 주세요. 기존 관리(admins) 권한과 동일한 마스터 기능이 연결됩니다. / Check master first-login # and 6-digit password match the Firebase account.'
+        );
+      } else if (code === 'auth/invalid-email') {
+        setErr('마스터 로그인 정보 형식을 확인해 주세요.');
+      } else if (code === 'auth/operation-not-allowed') {
+        setErr(
+          'Firebase에서 이메일/비밀번호 로그인이 꺼져 있습니다. 콘솔 → Authentication → Sign-in method → 이메일/비밀번호를 켜 주세요.'
+        );
+      } else setErr(er?.message || '마스터 로그인에 실패했습니다.');
     } finally {
       setBusy(false);
     }
@@ -230,6 +297,13 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
         >
           회원가입
         </button>
+        <button
+          type="button"
+          onClick={() => { setMode('master'); setErr(''); }}
+          className={tabBtn(mode === 'master', 'bg-violet-600')}
+        >
+          마스터
+        </button>
         <button type="button" onClick={() => { setMode('guest'); setErr(''); }} className={tabBtn(mode === 'guest', 'bg-amber-400')}>
           게스트
         </button>
@@ -289,6 +363,65 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
             className="mt-2 w-full rounded-2xl bg-gradient-to-r from-sky-600 to-blue-600 py-3.5 font-black text-white shadow-lg disabled:opacity-50"
           >
             로그인하고 놀러 가기
+          </button>
+        </form>
+      )}
+
+      {mode === 'master' && (
+        <form onSubmit={handleMasterLogin} className="w-full space-y-3">
+          <div className="rounded-xl border border-violet-500/40 bg-violet-950/35 px-3 py-2.5 mb-1">
+            <p className="text-[12px] text-violet-100/95 text-center break-keep leading-relaxed">
+              <strong className="text-amber-200">마스터 계정</strong>은 «첫 로그인 번호»(숫자 6자리)로 로그인합니다.{' '}
+              <strong className="text-amber-200">비밀번호도 숫자 6자리</strong>로 설정해 주세요. Firebase에{' '}
+              <code className="rounded bg-slate-800/80 px-1 text-[11px]">master_6자리@sisort.local</code> 형식으로 만든 계정과
+              동일해야 합니다. 이 로그인은 기존 <strong className="text-amber-200">관리자·마스터 권한</strong>(기록 열람·회원 잠금 해제)과
+              동일하게 연결됩니다.
+            </p>
+            <p className="text-[11px] text-slate-500 text-center mt-1.5 break-keep">
+              Master: 6-digit first login # + 6-digit PIN. Must match the Auth user email pattern. Same capabilities as admin master.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="sisort-master-first" className="block text-xs font-bold text-violet-200/95 mb-1.5">
+              첫 로그인 번호 (숫자 6자리)
+            </label>
+            <input
+              id="sisort-master-first"
+              inputMode="numeric"
+              name="masterFirstLogin"
+              value={masterFirstLogin}
+              onChange={(e) => setMasterFirstLogin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="예: 첫 로그인에 쓸 6자리"
+              maxLength={6}
+              autoComplete="username"
+              className={`${inputBase} tracking-widest text-center text-lg`}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="sisort-master-password" className="block text-xs font-bold text-violet-200/95 mb-1.5">
+              비밀번호 (숫자 6자리)
+            </label>
+            <input
+              id="sisort-master-password"
+              inputMode="numeric"
+              type="password"
+              name="masterPassword"
+              autoComplete="current-password"
+              value={masterPassword}
+              onChange={(e) => setMasterPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              maxLength={6}
+              className={`${inputBase} tracking-widest`}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-2 w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3.5 font-black text-white shadow-lg disabled:opacity-50"
+          >
+            마스터로 로그인
           </button>
         </form>
       )}

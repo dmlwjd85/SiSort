@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase.js';
 import { PACK_DATA } from '../data/words.js';
+import { isMasterAccountEmail } from './accountIdentity.js';
 
 const USERS = 'users';
 const ADMINS = 'admins';
@@ -156,6 +157,17 @@ export async function fetchAdminCapabilities(user) {
     showAdminPanel: false,
   };
   if (!user?.uid) return none;
+
+  /** 마스터 전용 로그인 이메일(master_6자리@…) — Firestore admins 와 동일한 전 권한 */
+  if (user.email && isMasterAccountEmail(user.email)) {
+    return {
+      isAdmin: true,
+      master: true,
+      viewRecords: true,
+      unlockMembers: true,
+      showAdminPanel: true,
+    };
+  }
 
   const env = import.meta.env.VITE_ADMIN_EMAILS || '';
   const emails = env

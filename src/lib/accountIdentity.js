@@ -5,6 +5,17 @@
 
 const DOMAIN = 'sisort.local';
 
+/**
+ * 가입·로그인에서 동일한 내부 이메일을 만들기 위해 이름 정규화
+ * (한글 NFD/NFC·연속 공백 차이로 해시가 달라지던 문제 방지)
+ */
+export function normalizeAccountName(s) {
+  return String(s || '')
+    .trim()
+    .normalize('NFC')
+    .replace(/\s+/g, ' ');
+}
+
 /** 짧은 해시로 로컬파트 길이 제한( Firebase 등 )에 안전하게 맞춤 */
 function hashIdentity(name, salt) {
   const s = `${name}\0${salt}`;
@@ -19,7 +30,7 @@ function hashIdentity(name, salt) {
  * 이름(실명)만으로 계정용 이메일 (로그인·가입 공통)
  */
 export function buildAccountEmailFromName(legalName) {
-  const name = String(legalName || '').trim();
+  const name = normalizeAccountName(legalName);
   if (name.length < 2 || name.length > 24) {
     throw new Error('INVALID_IDENTITY');
   }
@@ -47,4 +58,28 @@ export function pinToFirebasePassword(pin4) {
   const p = String(pin4 || '').replace(/\D/g, '');
   if (p.length !== 4) throw new Error('INVALID_PIN');
   return `${p}##`;
+}
+
+/**
+ * 마스터 계정: Firebase 콘솔에서 생성할 내부 이메일
+ * — «첫 로그인 번호» 6자리가 로컬파트에 그대로 들어가 동일 번호로 재현 가능(권한 연동용)
+ */
+export function buildMasterAccountEmail(firstLoginSixDigits) {
+  const n = String(firstLoginSixDigits || '').replace(/\D/g, '');
+  if (n.length !== 6) {
+    throw new Error('INVALID_MASTER_LOGIN');
+  }
+  return `master_${n}@${DOMAIN}`;
+}
+
+/** 마스터 전용 이메일이면 기존 관리 권한(마스터)과 동일하게 취급 */
+export function isMasterAccountEmail(email) {
+  return /^master_\d{6}@sisort\.local$/i.test(String(email || '').trim());
+}
+
+/** 마스터 비밀번호는 숫자 6자리( Firebase 최소 길이 충족 ) */
+export function masterPinToFirebasePassword(pin6) {
+  const p = String(pin6 || '').replace(/\D/g, '');
+  if (p.length !== 6) throw new Error('INVALID_MASTER_PIN');
+  return p;
 }
