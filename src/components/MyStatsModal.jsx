@@ -66,9 +66,9 @@ export default function MyStatsModal({ open, onClose, uid }) {
                     ))}
                   </ul>
                 </div>
-                <p className="text-[10px] text-slate-500">
-                  접속 {data.accessCount != null ? `${data.accessCount}회` : '—'} · 관리자에게도 동일 정보가 보입니다.
-                </p>
+                {data.accessCount != null && (
+                  <p className="text-[10px] text-slate-500">접속 {data.accessCount}회</p>
+                )}
               </div>
             )}
             <button

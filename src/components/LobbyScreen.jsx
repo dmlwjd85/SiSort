@@ -18,6 +18,42 @@ import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomC
 import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
 
 /**
+ * 명예의 전당 — 웹에서는 우측 열, 모바일에서는 하단 탭으로만 표시
+ */
+function HallOfFamePanel({ hallOfFame, PACK_DATA }) {
+  return (
+    <div className="rounded-2xl border border-amber-600/50 bg-gradient-to-br from-amber-950/80 via-slate-900 to-violet-950/40 p-4 shadow-lg shadow-amber-900/20">
+      <h2 className="text-center text-lg font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 mb-1">
+        명예의 전당
+      </h2>
+      <p className="text-[11px] text-amber-200/70 text-center mb-3 break-keep">
+        각 팩 최고 레벨 달성자 표시명. 동점이면 먼저 기록.{' '}
+        <strong className="text-amber-100">오프라인·가상 플레이어 1명</strong> 조건의 기록만 반영됩니다.
+      </p>
+      <ul className="space-y-1.5 max-h-[min(60vh,28rem)] overflow-y-auto text-sm pr-1">
+        {PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]).map((key) => {
+          const rec = hallOfFame[key];
+          const pack = PACK_DATA[key];
+          return (
+            <li
+              key={key}
+              className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 border-b border-amber-800/30 pb-1.5 text-slate-200"
+            >
+              <span className="text-slate-400 shrink-0">{pack.name}</span>
+              <span className="font-bold text-amber-100 tabular-nums text-right">
+                {rec?.holderName
+                  ? `${rec.holderName} · 최고 Lv.${rec.maxLevel ?? '—'}`
+                  : '아직 기록 없음'}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * 로비: 4자 방 코드, 멀티플레이(Firebase), 오프라인, AI 인원 조절
  */
 export default function LobbyScreen({
@@ -84,6 +120,8 @@ export default function LobbyScreen({
   const [nameDraft, setNameDraft] = useState(playerName);
   /** 팩별 최고 레벨 달성자(명예의 전당) */
   const [hallOfFame, setHallOfFame] = useState({});
+  /** 모바일: 로비 본화면 vs 명예의 전당 탭 */
+  const [lobbyTab, setLobbyTab] = useState('main');
 
   /** 로컬 오프라인 멤버 (1인 + AI) — useState는 이펙트보다 위에 두어 훅 순서를 맞춤 */
   const [localMembers, setLocalMembers] = useState(() => [
@@ -462,8 +500,8 @@ export default function LobbyScreen({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center p-4 text-white font-sans pb-24">
-      <div className="w-full max-w-2xl flex flex-wrap justify-end gap-2 mt-2">
+    <div className={`min-h-screen bg-slate-900 text-white font-sans ${onlineOk ? 'pb-28 lg:pb-10' : 'pb-10'}`}>
+      <div className="w-full max-w-7xl mx-auto px-4 flex flex-wrap justify-end gap-2 pt-2">
         {onOpenMyStats && (
           <button
             type="button"
@@ -492,7 +530,14 @@ export default function LobbyScreen({
           </button>
         )}
       </div>
-      <h1 className="text-4xl md:text-5xl font-black mt-6 mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
+
+      <div className="w-full max-w-7xl mx-auto px-4 flex flex-col lg:flex-row lg:items-start gap-6">
+        <div
+          className={`flex-1 min-w-0 w-full max-w-2xl mx-auto lg:mx-0 flex flex-col items-center ${
+            onlineOk && lobbyTab === 'hall' ? 'hidden lg:flex' : ''
+          }`}
+        >
+      <h1 className="text-4xl md:text-5xl font-black mt-4 mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 text-center">
         침묵의 가나다
       </h1>
       <p className="text-slate-400 text-sm mb-2 text-center break-keep">
@@ -510,38 +555,7 @@ export default function LobbyScreen({
         표시 이름 바꾸기
       </button>
 
-      {onlineOk && (
-        <div className="w-full max-w-2xl mb-6 rounded-2xl border border-amber-600/50 bg-gradient-to-br from-amber-950/80 via-slate-900 to-violet-950/40 p-4 shadow-lg shadow-amber-900/20">
-          <h2 className="text-center text-lg font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 mb-1">
-            명예의 전당
-          </h2>
-          <p className="text-[11px] text-amber-200/70 text-center mb-3 break-keep">
-            각 팩에서 가장 높은 레벨을 달성한 분의 표시 이름이 올라갑니다. 동점이면 먼저 기록을 세운 분을 기립니다.{' '}
-            <strong className="text-amber-100">오프라인에서 가상 플레이어 1명과 한 판</strong>으로 달성한 기록만 반영됩니다.
-          </p>
-          <ul className="space-y-1.5 max-h-48 overflow-y-auto text-sm pr-1">
-            {PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]).map((key) => {
-              const rec = hallOfFame[key];
-              const pack = PACK_DATA[key];
-              return (
-                <li
-                  key={key}
-                  className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 border-b border-amber-800/30 pb-1.5 text-slate-200"
-                >
-                  <span className="text-slate-400 shrink-0">{pack.name}</span>
-                  <span className="font-bold text-amber-100 tabular-nums text-right">
-                    {rec?.holderName
-                      ? `${rec.holderName} · 최고 Lv.${rec.maxLevel ?? '—'}`
-                      : '아직 기록 없음'}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4 w-full justify-center">
         <button
           type="button"
           onClick={() => {
@@ -568,72 +582,26 @@ export default function LobbyScreen({
         </button>
       </div>
 
-      <div className="w-full max-w-2xl bg-slate-800 rounded-2xl border border-slate-700 p-4 mb-4">
-        <label className="block text-xs text-slate-400 mb-1">방 이름 (4자리 · 대문자·숫자)</label>
-        {mode === 'online' && onlineOk ? (
-          <form
-            className="flex flex-wrap gap-2 items-center"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!busy) void handleJoinRoom();
-            }}
-          >
-            <input
-              value={roomCode}
-              onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
-              maxLength={4}
-              autoComplete="off"
-              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
-            />
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-slate-600 px-3 py-2 text-sm font-bold disabled:opacity-40 order-2 sm:order-1"
-            >
-              참가
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCreateRoom()}
-              disabled={busy || !canStart}
-              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold disabled:opacity-40 order-3 sm:order-2"
-            >
-              방 만들기
-            </button>
-          </form>
-        ) : (
-          <div className="flex flex-wrap gap-2 items-center">
-            <input
-              value={roomCode}
-              onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
-              maxLength={4}
-              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
-            />
-          </div>
-        )}
-        <p className="text-[11px] text-slate-500 mt-1.5">Enter 키는 참가로 동작합니다.</p>
-        {mode === 'online' && roomId && (
-          <div className="text-emerald-400 text-sm mt-2 space-y-0.5">
-            <p>
-              연결된 방: <strong>{roomId}</strong> {isHost ? '(나 — 방장)' : '(참가자)'}
-            </p>
-            {!isHost && hostMemberLabel && (
-              <p className="text-amber-200/95 text-xs">
-                방장: <strong>{hostMemberLabel}</strong>
-              </p>
-            )}
-            {isHost && <p className="text-amber-200/95 text-xs">이 방의 방장은 나입니다.</p>}
-          </div>
-        )}
+      <div className="w-full max-w-2xl rounded-2xl border border-sky-700/50 bg-sky-950/30 p-4 mb-4 text-left">
+        <h3 className="text-sky-300 font-bold text-sm mb-2">시작 전 안내</h3>
+        <ul className="text-[12px] text-slate-300 space-y-1.5 list-disc pl-4 break-keep">
+          <li>인원을 {ROOM_MIN}~{roomMax}명으로 맞춘 뒤, 아래에서 단어 수준(팩)을 고릅니다.</li>
+          <li>
+            <strong className="text-white">오프라인</strong>: 준비가 되면 큰 <strong className="text-white">게임 시작</strong> 버튼만 누르면 됩니다.
+          </li>
+          <li>
+            <strong className="text-white">온라인</strong>: 이 페이지 <strong className="text-white">맨 아래</strong> 방 코드로 참가하거나 방을 만든 다음, 방장이 단어 수준을 정하고 시작합니다.
+          </li>
+        </ul>
       </div>
 
-      {err && <p className="text-red-400 text-sm mb-2">{err}</p>}
+      {err && <p className="text-red-400 text-sm mb-2 w-full max-w-2xl text-center">{err}</p>}
 
       <div className="w-full max-w-2xl bg-slate-800 rounded-2xl border border-slate-700 p-4 mb-4">
         <h3 className="text-yellow-400 font-bold mb-2">단어 수준</h3>
         <p className="text-[11px] text-slate-500 mb-2 break-keep">
           {!isGuest &&
-            '회원: 유치원 팩부터 시작합니다. 이전 팩을 8레벨까지 클리어하면 다음 팩이 열립니다. 팩 잠금·명예의 전당·내 기록은 오프라인에서 가상 플레이어 1명만 둔 방(나+AI)으로 클리어한 경우만 인정됩니다.'}
+            '회원: 유치원 팩부터 시작합니다. 이전 팩 8레벨 클리어 시 다음 팩이 열립니다. 진행도·기록 반영은 오프라인에서 나+가상 1명 방 조건일 때만 됩니다.'}
         </p>
         {mode === 'online' && roomId && (
           <p className="text-[11px] text-emerald-300/90 mb-2 break-keep">
@@ -748,35 +716,160 @@ export default function LobbyScreen({
         )}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-3 mb-6">
-        <button type="button" onClick={() => setShowRules(true)} className="rounded-full bg-slate-700 px-6 py-3 font-bold">게임 방법</button>
-        <button type="button" onClick={() => setShowWordList(true)} className="rounded-full bg-green-800 px-6 py-3 font-bold">족보 단어장</button>
+      <div className="w-full max-w-2xl rounded-2xl border-2 border-blue-500/40 bg-gradient-to-b from-blue-950/50 to-slate-900/80 p-5 mb-5 shadow-xl shadow-blue-900/20">
+        <p className="text-center text-xs text-blue-200/90 mb-3 font-bold">준비되었나요?</p>
+        {mode === 'offline' && (
+          <button
+            type="button"
+            onClick={handleStartOffline}
+            disabled={!canStart}
+            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-5 text-2xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
+          >
+            게임 시작
+          </button>
+        )}
+        {mode === 'online' && isHost && roomId && (
+          <button
+            type="button"
+            onClick={handleStartOnline}
+            disabled={!canStart || busy || (remoteRoom?.phase === 'playing')}
+            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-5 text-2xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
+          >
+            게임 시작 (방장)
+          </button>
+        )}
+        {mode === 'online' && !(isHost && roomId) && (
+          <div className="text-center text-sm text-slate-400 space-y-1 break-keep">
+            {roomId && !isHost && <p>방장이 게임을 시작할 때까지 대기 중입니다.</p>}
+            {!roomId && (
+              <p>
+                맨 아래 <strong className="text-slate-200">방 코드</strong>로 참가하거나 방을 만든 뒤, 방장이 시작합니다.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      {mode === 'offline' && (
+      <div className="flex flex-wrap justify-center gap-2 mb-8">
         <button
           type="button"
-          onClick={handleStartOffline}
-          disabled={!canStart}
-          className="rounded-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-10 py-4 text-xl font-black shadow-lg"
+          onClick={() => setShowRules(true)}
+          className="rounded-full bg-slate-700 px-5 py-2.5 text-sm font-bold"
         >
-          게임 시작
+          게임 방법
         </button>
-      )}
-
-      {mode === 'online' && isHost && roomId && (
         <button
           type="button"
-          onClick={handleStartOnline}
-          disabled={!canStart || busy || (remoteRoom?.phase === 'playing')}
-          className="rounded-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-10 py-4 text-xl font-black shadow-lg"
+          onClick={() => setShowWordList(true)}
+          className="rounded-full bg-green-800 px-5 py-2.5 text-sm font-bold"
         >
-          게임 시작 (호스트)
+          족보 단어장
         </button>
-      )}
+      </div>
 
-      {mode === 'online' && !isHost && roomId && (
-        <p className="text-slate-400 text-sm">호스트가 게임을 시작할 때까지 대기 중…</p>
+      <div className="w-full max-w-2xl bg-slate-800 rounded-2xl border border-slate-600 p-4 mb-6 mt-2">
+        <label className="block text-xs text-slate-400 mb-1">방 코드 (4자리 · 대문자·숫자)</label>
+        {mode === 'online' && onlineOk ? (
+          <form
+            className="flex flex-wrap gap-2 items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!busy) void handleJoinRoom();
+            }}
+          >
+            <input
+              value={roomCode}
+              onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
+              maxLength={4}
+              autoComplete="off"
+              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-slate-600 px-3 py-2 text-sm font-bold disabled:opacity-40"
+            >
+              참가
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCreateRoom()}
+              disabled={busy || !canStart}
+              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+            >
+              방 만들기
+            </button>
+          </form>
+        ) : (
+          <div className="flex flex-wrap gap-2 items-center opacity-60">
+            <input
+              value={roomCode}
+              onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
+              maxLength={4}
+              disabled
+              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
+            />
+            <span className="text-[11px] text-slate-500">온라인 모드에서만 사용합니다.</span>
+          </div>
+        )}
+        <p className="text-[11px] text-slate-500 mt-1.5">참가 입력 후 Enter 키로 참가할 수 있습니다.</p>
+        {mode === 'online' && roomId && (
+          <div className="text-emerald-400 text-sm mt-3 space-y-0.5 border-t border-slate-700 pt-3">
+            <p>
+              연결된 방: <strong>{roomId}</strong> {isHost ? '(나 — 방장)' : '(참가자)'}
+            </p>
+            {!isHost && hostMemberLabel && (
+              <p className="text-amber-200/95 text-xs">
+                방장: <strong>{hostMemberLabel}</strong>
+              </p>
+            )}
+            {isHost && <p className="text-amber-200/95 text-xs">이 방의 방장은 나입니다.</p>}
+          </div>
+        )}
+      </div>
+
+        </div>
+
+        {onlineOk && (
+          <aside className="hidden lg:block w-80 shrink-0 lg:sticky lg:top-4 self-start">
+            <HallOfFamePanel hallOfFame={hallOfFame} PACK_DATA={PACK_DATA} />
+          </aside>
+        )}
+        {onlineOk && (
+          <div className={`lg:hidden w-full pb-4 ${lobbyTab === 'hall' ? 'block' : 'hidden'}`}>
+            <HallOfFamePanel hallOfFame={hallOfFame} PACK_DATA={PACK_DATA} />
+          </div>
+        )}
+      </div>
+
+      {onlineOk && (
+        <nav
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-slate-700 bg-slate-900/95 backdrop-blur-md"
+          aria-label="로비 메뉴"
+        >
+          <button
+            type="button"
+            onClick={() => setLobbyTab('main')}
+            className={`flex-1 py-3.5 text-sm font-black transition ${
+              lobbyTab === 'main'
+                ? 'text-amber-300 border-t-2 border-amber-400 bg-slate-800/90'
+                : 'text-slate-500'
+            }`}
+          >
+            로비
+          </button>
+          <button
+            type="button"
+            onClick={() => setLobbyTab('hall')}
+            className={`flex-1 py-3.5 text-sm font-black transition ${
+              lobbyTab === 'hall'
+                ? 'text-amber-300 border-t-2 border-amber-400 bg-slate-800/90'
+                : 'text-slate-500'
+            }`}
+          >
+            명예의 전당
+          </button>
+        </nav>
       )}
 
       {showRules && (

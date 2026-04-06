@@ -1,5 +1,7 @@
 import {
   getAuth,
+  setPersistence,
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -19,6 +21,20 @@ export function getFirebaseAuth() {
   const app = getFirebaseApp();
   if (!app) return null;
   return getAuth(app);
+}
+
+/** 브라우저·탭을 닫아도 로그인 유지(강제 종료·시크릿 모드 제외). 앱 부팅 시 한 번 await */
+let persistenceReady = Promise.resolve();
+let persistenceDone = false;
+export function initAuthPersistence() {
+  const auth = getFirebaseAuth();
+  if (!auth) return Promise.resolve();
+  if (persistenceDone) return persistenceReady;
+  persistenceDone = true;
+  persistenceReady = setPersistence(auth, browserLocalPersistence).catch((e) => {
+    console.warn('[auth] 로컬 로그인 유지 설정 실패', e);
+  });
+  return persistenceReady;
 }
 
 /**
