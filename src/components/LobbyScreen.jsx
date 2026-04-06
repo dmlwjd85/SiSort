@@ -546,7 +546,7 @@ export default function LobbyScreen({
 
       <div className="w-full max-w-7xl mx-auto px-4 flex flex-col lg:flex-row lg:items-start gap-6">
         <div
-          className={`flex-1 min-w-0 w-full max-w-2xl mx-auto lg:mx-0 flex flex-col items-center ${
+          className={`flex-1 min-w-0 w-full max-w-[min(100%,56rem)] xl:max-w-6xl mx-auto lg:mx-0 flex flex-col items-center ${
             onlineOk && lobbyTab === 'hall' ? 'hidden lg:flex' : ''
           }`}
         >
@@ -560,6 +560,35 @@ export default function LobbyScreen({
           <span className="block text-amber-300/95 text-xs mt-1">게스트: 유치원·6학년 사회 팩 이용</span>
         )}
       </p>
+
+      <div className="sticky top-0 z-30 w-full max-w-2xl -mx-4 px-4 py-2.5 mb-3 bg-slate-900/95 backdrop-blur-md border-b border-slate-600/70 shadow-lg shadow-black/20 lg:static lg:z-0 lg:mx-0 lg:px-0 lg:py-0 lg:mb-4 lg:bg-transparent lg:border-0 lg:shadow-none">
+        {mode === 'offline' && (
+          <button
+            type="button"
+            onClick={handleStartOffline}
+            disabled={!canStart}
+            className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl sm:text-2xl font-black text-white shadow-lg active:scale-[0.99] transition"
+          >
+            ⚡ 빠른 시작
+          </button>
+        )}
+        {mode === 'online' && isHost && roomId && (
+          <button
+            type="button"
+            onClick={handleStartOnline}
+            disabled={!canStart || busy || (remoteRoom?.phase === 'playing')}
+            className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl sm:text-2xl font-black text-white shadow-lg active:scale-[0.99] transition"
+          >
+            ⚡ 빠른 시작 (방장)
+          </button>
+        )}
+        {mode === 'online' && !(isHost && roomId) && (
+          <p className="text-center text-xs text-slate-500 break-keep py-1">
+            방장이 시작할 때까지 아래에서 방에 참가하거나 대기하세요.
+          </p>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={() => { setNameDraft(playerName); setShowNameEdit(true); }}
@@ -600,7 +629,7 @@ export default function LobbyScreen({
         <ul className="text-[12px] text-slate-300 space-y-1.5 list-disc pl-4 break-keep">
           <li>인원을 {ROOM_MIN}~{roomMax}명으로 맞춘 뒤, 아래에서 단어 수준(팩)을 고릅니다.</li>
           <li>
-            <strong className="text-white">오프라인</strong>: 준비가 되면 큰 <strong className="text-white">게임 시작</strong> 버튼만 누르면 됩니다.
+            <strong className="text-white">오프라인</strong>: 맨 위 <strong className="text-white">빠른 시작</strong>으로 바로 들어가거나, 아래에서 인원·팩을 맞춘 뒤 시작할 수 있습니다.
           </li>
           <li>
             <strong className="text-white">온라인</strong>: 이 페이지 <strong className="text-white">맨 아래</strong> 방 코드로 참가하거나 방을 만든 다음, 방장이 단어 수준을 정하고 시작합니다.
@@ -730,15 +759,17 @@ export default function LobbyScreen({
       </div>
 
       <div className="w-full max-w-2xl rounded-2xl border-2 border-blue-500/40 bg-gradient-to-b from-blue-950/50 to-slate-900/80 p-5 mb-5 shadow-xl shadow-blue-900/20">
-        <p className="text-center text-xs text-blue-200/90 mb-3 font-bold">준비되었나요?</p>
+        <p className="text-center text-xs text-blue-200/90 mb-3 font-bold break-keep">
+          인원·팩을 바꾼 뒤에도 위와 같이 <strong className="text-white">빠른 시작</strong>으로 바로 입장할 수 있습니다.
+        </p>
         {mode === 'offline' && (
           <button
             type="button"
             onClick={handleStartOffline}
             disabled={!canStart}
-            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-5 text-2xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
+            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
           >
-            게임 시작
+            ⚡ 빠른 시작
           </button>
         )}
         {mode === 'online' && isHost && roomId && (
@@ -746,9 +777,9 @@ export default function LobbyScreen({
             type="button"
             onClick={handleStartOnline}
             disabled={!canStart || busy || (remoteRoom?.phase === 'playing')}
-            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-5 text-2xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
+            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
           >
-            게임 시작 (방장)
+            ⚡ 빠른 시작 (방장)
           </button>
         )}
         {mode === 'online' && !(isHost && roomId) && (

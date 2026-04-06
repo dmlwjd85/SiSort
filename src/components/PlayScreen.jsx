@@ -27,6 +27,7 @@ export default function PlayScreen(props) {
     message,
     isPreparing,
     prepTimeLeft,
+    skipPrep,
     userHand,
     handlePlayCard,
     reorderMyHandPrep,
@@ -44,7 +45,7 @@ export default function PlayScreen(props) {
   } = props;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="h-[100dvh] min-h-0 bg-slate-900 text-slate-100 flex flex-col font-sans overflow-hidden">
       <GameHeader
         setGameState={setGameState}
         startGame={startGame}
@@ -61,37 +62,48 @@ export default function PlayScreen(props) {
         isPreparing={isPreparing}
       />
 
-      <PlayArea
-        gameState={gameState}
-        opponentSlots={opponentSlots}
-        cardsBySlot={cardsBySlot}
-        getOwnerLabel={getOwnerLabel}
-        isHintMode={isHintMode}
-        handleRevealAICard={handleRevealAICard}
-        lastPlayed={lastPlayed}
-        sortedPlayedStack={sortedPlayedStack}
-        allCards={allCards}
-        message={message}
-        isPreparing={isPreparing}
-        prepTimeLeft={prepTimeLeft}
-        userHand={userHand}
-        mySlotIndex={mySlotIndex}
-        hintActorName={hintActorName}
-        isHintMode={isHintMode}
-      />
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 min-w-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          <PlayArea
+            gameState={gameState}
+            opponentSlots={opponentSlots}
+            cardsBySlot={cardsBySlot}
+            getOwnerLabel={getOwnerLabel}
+            isHintMode={isHintMode}
+            handleRevealAICard={handleRevealAICard}
+            lastPlayed={lastPlayed}
+            sortedPlayedStack={sortedPlayedStack}
+            allCards={allCards}
+            message={message}
+            isPreparing={isPreparing}
+            prepTimeLeft={prepTimeLeft}
+            onSkipPrep={skipPrep}
+            userHand={userHand}
+            mySlotIndex={mySlotIndex}
+            hintActorName={hintActorName}
+            isHintMode={isHintMode}
+          />
+        </div>
 
-      <div className={gameState === 'level_clear' ? 'max-md:hidden' : ''}>
-        <PlayerHand
-          userHand={userHand}
-          handlePlayCard={handlePlayCard}
-          gameState={gameState}
-          isPaused={isPaused}
-          isHintMode={isHintMode}
-          isPreparing={isPreparing}
-          reorderMyHandPrep={reorderMyHandPrep}
-          canReorderHand={canReorderHand}
-          guestPlayLocked={guestPlayLocked}
-        />
+        <div
+          className={
+            gameState === 'level_clear'
+              ? 'max-md:hidden shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end'
+              : 'shrink-0 lg:w-[min(42vw,26rem)] lg:max-w-md lg:min-w-[260px] lg:flex lg:flex-col lg:justify-end min-h-0 border-t lg:border-t-0 lg:border-l border-slate-700/60'
+          }
+        >
+          <PlayerHand
+            userHand={userHand}
+            handlePlayCard={handlePlayCard}
+            gameState={gameState}
+            isPaused={isPaused}
+            isHintMode={isHintMode}
+            isPreparing={isPreparing}
+            reorderMyHandPrep={reorderMyHandPrep}
+            canReorderHand={canReorderHand}
+            guestPlayLocked={guestPlayLocked}
+          />
+        </div>
       </div>
 
       <ResultModal

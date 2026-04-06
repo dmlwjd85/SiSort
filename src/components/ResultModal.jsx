@@ -20,7 +20,8 @@ export default function ResultModal({
   const [quizCard, setQuizCard] = useState(null);
   /** 복습 준비(10초) — 끝나거나 버튼으로 바로 시작 */
   const [reviewPrepDone, setReviewPrepDone] = useState(false);
-  const [reviewPrepLeft, setReviewPrepLeft] = useState(10);
+  /** 복습 전에 단어를 떠올릴 생각할 시간(초) — 버튼으로 바로 넘어갈 수 있음 */
+  const [reviewPrepLeft, setReviewPrepLeft] = useState(15);
 
   /** 이번 레벨에서 복습할 카드: 1레벨 1장 … N레벨 N장(상한: 이번 레벨 카드 수) 무작위 추출 */
   const reviewOrder = useMemo(() => {
@@ -45,7 +46,7 @@ export default function ResultModal({
   useEffect(() => {
     if (gameState !== 'level_clear') return;
     setReviewPrepDone(false);
-    setReviewPrepLeft(10);
+    setReviewPrepLeft(15);
     setQuizCard(null);
   }, [gameState, level]);
 
@@ -66,9 +67,10 @@ export default function ResultModal({
       {gameState === 'level_clear' && !reviewPrepDone && (
         <div className="pointer-events-auto fixed inset-0 z-[105] flex items-center justify-center bg-slate-950/92 p-4 backdrop-blur-sm">
           <DraggablePanel className="w-full max-w-md rounded-2xl border border-amber-600/50 bg-slate-900/95 p-6 shadow-2xl text-center">
-            <h3 className="text-lg font-bold text-amber-200 mb-2 break-keep">복습 전 준비 시간</h3>
+            <h3 className="text-lg font-bold text-amber-200 mb-2 break-keep">복습 전 생각할 시간</h3>
             <p className="text-sm text-slate-400 mb-4 break-keep">
-              이번 레벨 단어를 떠올려 보세요. 레벨 {level}에서는 무작위로 {reviewOrder.length}개만 복습합니다.
+              이번 레벨 단어를 떠올려 보세요. 레벨 {level}에서는 무작위로 {reviewOrder.length}개만 복습합니다. 아래를 누르면
+              바로 복습 화면으로 넘어갑니다.
             </p>
             <div className="text-6xl font-black text-white tabular-nums mb-6">{reviewPrepLeft}</div>
             <button

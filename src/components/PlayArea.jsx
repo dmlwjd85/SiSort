@@ -28,6 +28,7 @@ export default function PlayArea({
   message,
   isPreparing,
   prepTimeLeft,
+  onSkipPrep,
   userHand,
   mySlotIndex,
   hintActorName = '',
@@ -46,9 +47,9 @@ export default function PlayArea({
     gameState === 'level_clear' ? 'max-md:hidden' : '';
   return (
     <div
-      className={`flex-1 relative flex flex-col items-center justify-start p-4 overflow-y-auto ${hideAllDuringMobileReview}`}
+      className={`flex-1 min-h-0 relative flex flex-col items-center justify-start p-3 sm:p-4 overflow-y-auto overscroll-contain ${hideAllDuringMobileReview}`}
     >
-      <div className="w-full max-w-5xl flex flex-wrap justify-center gap-6 sm:gap-10 mt-4">
+      <div className="w-full max-w-[min(100%,80rem)] flex flex-wrap justify-center gap-4 sm:gap-8 lg:gap-10 mt-2 lg:mt-3">
         {opponentSlots.map((op, i) => {
           const cards = cardsBySlot(op.slotIndex);
           const style = OPPONENT_STYLES[i % OPPONENT_STYLES.length];
@@ -163,40 +164,49 @@ export default function PlayArea({
       )}
 
       {isPreparing && (
-        <div className="pointer-events-none absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/75 backdrop-blur-md rounded-xl">
-          <div className="pointer-events-auto max-w-xl px-2">
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-xl p-3">
+          <div className="max-w-xl w-full px-1 pointer-events-auto">
             <DraggablePanel className="rounded-xl border border-yellow-600/40 bg-slate-900/95 p-4 shadow-xl">
-              <h2 className="text-xl md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
+              <h2 className="text-lg md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
                 내 카드를 확인하고 순서를 예상하세요!
               </h2>
               <p className="text-center text-sm text-amber-100/95 mb-2 break-keep leading-relaxed font-medium">
                 아래 손패에서 카드를 <strong className="text-amber-300">꾹 눌러</strong> 사전 순으로 정렬하거나,{' '}
                 <strong className="text-amber-300">드래그</strong>해 순서를 바꿀 수 있습니다.
               </p>
-              <p className="text-center text-[11px] text-slate-500 mb-4 break-keep">
+              <p className="text-center text-[11px] text-slate-500 mb-3 break-keep">
                 Long-press to sort · drag to reorder
               </p>
+              {typeof onSkipPrep === 'function' && (
+                <button
+                  type="button"
+                  onClick={onSkipPrep}
+                  className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-3 font-bold text-base text-white shadow-lg"
+                >
+                  준비 완료 · 바로 시작
+                </button>
+              )}
             </DraggablePanel>
           </div>
 
-          <div className="pointer-events-none flex justify-center gap-4 flex-wrap mb-6 mt-4 w-full px-4">
+          <div className="pointer-events-none flex justify-center gap-3 flex-wrap mb-4 mt-4 w-full px-2 max-h-[38vh] overflow-y-auto">
             {userHand.map((card) => (
               <div
                 key={card.id}
-                className="w-28 h-40 sm:w-32 sm:h-44 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-3 text-slate-800 border-4 border-blue-400"
+                className="w-24 h-36 sm:w-28 sm:h-40 md:w-32 md:h-44 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-2 sm:p-3 text-slate-800 border-4 border-blue-400 shrink-0"
               >
-                <span className="text-2xl sm:text-3xl font-black mb-2">{card.word}</span>
-                <span className="text-xs text-slate-600 text-center leading-tight break-keep">{card.desc}</span>
+                <span className="text-xl sm:text-2xl md:text-3xl font-black mb-1">{card.word}</span>
+                <span className="text-[10px] sm:text-xs text-slate-600 text-center leading-tight break-keep line-clamp-4">{card.desc}</span>
               </div>
             ))}
           </div>
 
           {prepTimeLeft >= 1 && (
-            <p className="pointer-events-none text-amber-200/95 text-sm font-bold mb-1 drop-shadow-lg">
-              곧 시작합니다 · {prepTimeLeft}
+            <p className="text-amber-200/95 text-sm font-bold mb-1 drop-shadow-lg">
+              자동 시작까지 · {prepTimeLeft}초
             </p>
           )}
-          <div className="pointer-events-none font-black text-7xl sm:text-8xl text-amber-300 drop-shadow-2xl tabular-nums animate-pulse">
+          <div className="font-black text-6xl sm:text-7xl md:text-8xl text-amber-300 drop-shadow-2xl tabular-nums animate-pulse">
             {prepTimeLeft >= 1 ? prepTimeLeft : 0}
           </div>
         </div>

@@ -30,8 +30,8 @@ export default function GameHeader({
     timeLeft <= 5;
 
   return (
-    <div className="bg-slate-800 p-4 shadow-md z-10">
-      <div className="max-w-5xl mx-auto flex flex-wrap justify-between items-center gap-2">
+    <div className="shrink-0 bg-slate-800 p-3 sm:p-4 shadow-md z-10 border-b border-slate-700/80">
+      <div className="w-full max-w-[min(100%,90rem)] mx-auto px-1 sm:px-2 flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-2 sm:gap-4">
           <button
             type="button"

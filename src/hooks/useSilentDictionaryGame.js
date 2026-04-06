@@ -301,6 +301,10 @@ export function useSilentDictionaryGame(options = {}) {
   /** 오프라인 1대1: 사람이 선두 카드를 안 낼 때 AI 오답 끼어들기 스케줄 */
   const aiHumanStallForceAtRef = useRef(0);
   const aiHumanStallForceCardIdRef = useRef('');
+  /** 직전 정상 제출이 AI였는지 — 연속 AI 턴 사이 간격용 */
+  const aiLastPlayWasAiRef = useRef(false);
+  /** 이번 라운드 전체 카드 수(첫 제출이 AI 선두일 때 연출용) */
+  const roundTotalCardsRef = useRef(0);
   const [playedStack, setPlayedStack] = useState([]);
 
   /** @type {{ playerId: string, name: string, isAI: boolean }[]} */
@@ -471,6 +475,7 @@ export function useSilentDictionaryGame(options = {}) {
         Math.min(60, Math.max(0, Number.isFinite(Number(g.prepTimeLeft)) ? Math.floor(Number(g.prepTimeLeft)) : 5))
       );
       setAllCards(safeCards);
+      roundTotalCardsRef.current = safeCards.length;
       setPlayedStack(safeStack);
       setSelectedPackKey(pk);
 
@@ -511,6 +516,8 @@ export function useSilentDictionaryGame(options = {}) {
     aiLastPlayWasHumanRef.current = false;
     aiHumanStallForceAtRef.current = 0;
     aiHumanStallForceCardIdRef.current = '';
+    aiLastPlayWasAiRef.current = false;
+    roundTotalCardsRef.current = bundle.allCards.length;
     setAllCards(bundle.allCards);
     setPlayedStack(bundle.playedStack);
     setLevel(bundle.level);
@@ -591,6 +598,7 @@ export function useSilentDictionaryGame(options = {}) {
       aiLastPlayWasHumanRef.current = false;
       aiHumanStallForceAtRef.current = 0;
       aiHumanStallForceCardIdRef.current = '';
+      aiLastPlayWasAiRef.current = false;
       syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
       setSessionMembers(members);
       setMySlotIndex(mySlot);
@@ -600,6 +608,7 @@ export function useSilentDictionaryGame(options = {}) {
       setUsedWords([]);
       const bundle = buildLevelBundle(1, members, packKey, [], false);
       if (!bundle) return;
+      roundTotalCardsRef.current = bundle.allCards.length;
       setAllCards(bundle.allCards);
       setHandDisplayOrder(bundle.handDisplayOrder ?? {});
       setPlayedStack(bundle.playedStack);
@@ -696,6 +705,8 @@ export function useSilentDictionaryGame(options = {}) {
     aiLastPlayWasHumanRef.current = false;
     aiHumanStallForceAtRef.current = 0;
     aiHumanStallForceCardIdRef.current = '';
+    aiLastPlayWasAiRef.current = false;
+    roundTotalCardsRef.current = 0;
     syncNetRef(null);
     setGameState('home');
     setSessionMembers([]);
@@ -854,6 +865,7 @@ export function useSilentDictionaryGame(options = {}) {
           aiPlayAtWallRef.current = 0;
         }
         aiLastPlayWasHumanRef.current = !!(mem && !mem.isAI);
+        aiLastPlayWasAiRef.current = !!(mem && mem.isAI);
         aiHumanStallForceAtRef.current = 0;
         aiHumanStallForceCardIdRef.current = '';
         setAllCards((prev) => prev.map((c) => (c.id === cardToPlay.id ? { ...c, status: 'played' } : c)));
@@ -908,6 +920,7 @@ export function useSilentDictionaryGame(options = {}) {
           aiPlayAtWallRef.current = 0;
         }
         aiLastPlayWasHumanRef.current = !!(m && !m.isAI);
+        aiLastPlayWasAiRef.current = !!(m && m.isAI);
         aiHumanStallForceAtRef.current = 0;
         aiHumanStallForceCardIdRef.current = '';
         setAllCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: 'played' } : c)));
@@ -1075,14 +1088,22 @@ export function useSilentDictionaryGame(options = {}) {
         return;
       }
 
-      /* AI 다장: 정답은 동일, 반응은 빠름/보통/망설임 혼합 + 직전 수가 사람이면 판 읽기 지연 */
+      /* AI 다장: 선두·연속 AI 턴은 텀을 넉넉히 — 사람이 끼어들 여지 */
       if (aiPlayScheduledCardIdRef.current !== cardToPlay.id) {
-        const afterHuman =
-          aiLastPlayWasHumanRef.current && Math.random() < 0.72 ? 80 + Math.random() * 450 : 0;
+        const afterHumanLead =
+          aiLastPlayWasHumanRef.current && Math.random() < 0.78 ? 220 + Math.random() * 780 : 0;
+        let chainGap = 0;
+        if (aiLastPlayWasAiRef.current) {
+          chainGap += 520 + Math.random() * 1780;
+        }
+        let openingLead = 0;
+        if (unplayedCards.length === roundTotalCardsRef.current && members[si]?.isAI) {
+          openingLead += 400 + Math.random() * 950;
+        }
         const delayMs = sampleAiReactionDelayMs({
           multiCard: true,
           secondsLeft: currentTime,
-          afterHumanBonusMs: afterHuman,
+          afterHumanBonusMs: afterHumanLead + chainGap + openingLead,
         });
         aiPlayAtWallRef.current = Date.now() + delayMs;
         aiPlayScheduledCardIdRef.current = cardToPlay.id;
@@ -1156,6 +1177,8 @@ export function useSilentDictionaryGame(options = {}) {
         aiLastPlayWasHumanRef.current = false;
         aiHumanStallForceAtRef.current = 0;
         aiHumanStallForceCardIdRef.current = '';
+        aiLastPlayWasAiRef.current = false;
+        roundTotalCardsRef.current = 0;
         setAllCards([]);
         setPlayedStack([]);
         setMessage('');
@@ -1366,6 +1389,12 @@ export function useSilentDictionaryGame(options = {}) {
     [sessionMembers, mySlotIndex]
   );
 
+  /** 카드 살펴보기 단계에서 즉시 본편 시작(타이머와 동일) */
+  const skipPrep = useCallback(() => {
+    if (gameState !== 'playing' || !isPreparing) return;
+    setPrepTimeLeft(0);
+  }, [gameState, isPreparing]);
+
   return {
     PACK_DATA,
     gameState,
@@ -1386,6 +1415,7 @@ export function useSilentDictionaryGame(options = {}) {
     setShowWordList,
     isPreparing,
     prepTimeLeft,
+    skipPrep,
     selectedPackKey,
     setSelectedPackKey,
     currentWordDB,

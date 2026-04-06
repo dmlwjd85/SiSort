@@ -18,6 +18,7 @@ export default function PlayerHand({
   reorderMyHandPrep,
   canReorderHand = false,
   guestPlayLocked,
+  className = '',
 }) {
   const [dragFrom, setDragFrom] = useState(null);
 
@@ -98,7 +99,9 @@ export default function PlayerHand({
     gameState !== 'playing' || isPaused || isHintMode || isPreparing || guestPlayLocked;
 
   return (
-    <div className="bg-slate-800 p-4 sm:p-6 shadow-up z-10 border-t border-slate-700 pb-safe shrink-0">
+    <div
+      className={`bg-slate-800 p-3 sm:p-4 lg:p-5 shadow-up z-10 border-t border-slate-700 lg:border-t-0 pb-safe shrink-0 ${className}`.trim()}
+    >
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-end mb-3">
           <div className="flex flex-col gap-0.5">
