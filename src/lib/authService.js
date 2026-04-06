@@ -24,7 +24,7 @@ export function getFirebaseAuth() {
 /**
  * @param {string} email
  * @param {string} password
- * @param {string} displayName 본명
+ * @param {string} displayName Firebase 프로필 표시(보통 이메일 @ 앞)
  */
 export async function registerWithEmail(email, password, displayName) {
   const auth = getFirebaseAuth();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { doc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, collection, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import JokboWordListModal from './JokboWordListModal.jsx';
 import { getFirestoreDb, isFirebaseConfigured, ensureFirebaseAuth } from '../lib/firebase.js';
 import {
@@ -77,6 +77,8 @@ export default function LobbyScreen({
   const kickBlockedUntilRef = useRef(0);
   const [showNameEdit, setShowNameEdit] = useState(false);
   const [nameDraft, setNameDraft] = useState(playerName);
+  /** 팩별 최고 레벨 달성자(명예의 전당) */
+  const [hallOfFame, setHallOfFame] = useState({});
 
   /** 로컬 오프라인 멤버 (1인 + AI) — useState는 이펙트보다 위에 두어 훅 순서를 맞춤 */
   const [localMembers, setLocalMembers] = useState(() => [
@@ -108,6 +110,26 @@ export default function LobbyScreen({
   useEffect(() => {
     setNameDraft(playerName);
   }, [playerName]);
+
+  /** 명예의 전당 실시간 구독(로그인 여부와 무관하게 읽기 전용) */
+  useEffect(() => {
+    if (!db) {
+      setHallOfFame({});
+      return undefined;
+    }
+    const col = collection(db, 'hallOfFame');
+    return onSnapshot(
+      col,
+      (snap) => {
+        const next = {};
+        snap.forEach((d) => {
+          next[d.id] = d.data();
+        });
+        setHallOfFame(next);
+      },
+      () => setHallOfFame({})
+    );
+  }, [db]);
 
   useEffect(() => {
     setLocalMembers((prev) =>
@@ -434,10 +456,40 @@ export default function LobbyScreen({
       <button
         type="button"
         onClick={() => { setNameDraft(playerName); setShowNameEdit(true); }}
-        className="text-xs text-sky-400 hover:underline mb-6"
+        className="text-xs text-sky-400 hover:underline mb-4"
       >
         표시 이름 바꾸기
       </button>
+
+      {onlineOk && (
+        <div className="w-full max-w-2xl mb-6 rounded-2xl border border-amber-600/50 bg-gradient-to-br from-amber-950/80 via-slate-900 to-violet-950/40 p-4 shadow-lg shadow-amber-900/20">
+          <h2 className="text-center text-lg font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 mb-1">
+            명예의 전당
+          </h2>
+          <p className="text-[11px] text-amber-200/70 text-center mb-3 break-keep">
+            각 팩에서 가장 높은 레벨을 달성한 분의 표시 이름이 올라갑니다. 동점이면 먼저 기록을 세운 분을 기립니다.
+          </p>
+          <ul className="space-y-1.5 max-h-48 overflow-y-auto text-sm pr-1">
+            {PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]).map((key) => {
+              const rec = hallOfFame[key];
+              const pack = PACK_DATA[key];
+              return (
+                <li
+                  key={key}
+                  className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 border-b border-amber-800/30 pb-1.5 text-slate-200"
+                >
+                  <span className="text-slate-400 shrink-0">{pack.name}</span>
+                  <span className="font-bold text-amber-100 tabular-nums text-right">
+                    {rec?.holderName
+                      ? `${rec.holderName} · 최고 Lv.${rec.maxLevel ?? '—'}`
+                      : '아직 기록 없음'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-6">
         <button

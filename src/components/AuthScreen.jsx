@@ -6,15 +6,33 @@ import { safeSetItem } from '../utils/safeStorage.js';
 
 const GUEST_KEY = 'sisort_guest';
 
+/** 생년월일 8자리(YYYYMMDD) 유효 여부 */
+function isValidBirthDate8(s) {
+  if (!/^\d{8}$/.test(s)) return false;
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(4, 6));
+  const d = Number(s.slice(6, 8));
+  if (y < 1900 || y > 2100) return false;
+  if (m < 1 || m > 12) return false;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+function emailLocalPart(emailStr) {
+  const s = String(emailStr || '').trim();
+  const i = s.indexOf('@');
+  return i > 0 ? s.slice(0, i).slice(0, 40) : '사용자';
+}
+
 /**
- * 메인 로그인: 회원가입(본명·이메일·비밀번호) / 로그인 / 게스트(유치원+6학년사회 팩)
+ * 메인 로그인: 회원가입(생년월일 8자리·이메일·비밀번호) / 로그인 / 게스트(유치원+6학년사회 팩)
  */
 export default function AuthScreen({ onGuest, onLoggedIn }) {
   const [mode, setMode] = useState('login'); // login | register | guest
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [birthDate8, setBirthDate8] = useState('');
   const [guestName, setGuestName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,9 +42,9 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     setErr('');
-    const name = displayName.trim();
-    if (name.length < 1 || name.length > 24) {
-      setErr('본명을 1~24자로 입력해 주세요.');
+    const bd = birthDate8.trim().replace(/\D/g, '');
+    if (bd.length !== 8 || !isValidBirthDate8(bd)) {
+      setErr('생년월일을 숫자 8자리(예: 20150315)로 올바르게 입력해 주세요.');
       return;
     }
     if (password.length < 6) {
@@ -37,11 +55,16 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       setErr('비밀번호 확인이 일치하지 않습니다.');
       return;
     }
+    const localName = emailLocalPart(email);
     setBusy(true);
     try {
-      const user = await registerWithEmail(email, password, name);
-      await createUserProfile(user.uid, { email: user.email || email, displayName: name });
-      safeSetItem('sisort_name', name);
+      const user = await registerWithEmail(email, password, localName);
+      await createUserProfile(user.uid, {
+        email: user.email || email,
+        birthDate: bd,
+        displayName: localName,
+      });
+      safeSetItem('sisort_name', localName);
       safeSetItem(GUEST_KEY, '0');
       onLoggedIn(user);
     } catch (er) {
@@ -118,7 +141,7 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
         침묵의 가나다
       </h1>
       <p className="text-slate-400 text-sm mb-6 text-center break-keep max-w-md">
-        로그인 후 본명으로 기록되며, 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
+        회원가입 시 생년월일(8자리)과 이메일만 받으며, 게임·명예의 전당에는 이메일 @ 앞 표시가 쓰입니다. 팩은 진행에 따라 잠금 해제됩니다. 게스트는 유치원·6학년 사회 팩만 이용할 수 있습니다.
       </p>
 
       <div className="flex gap-2 mb-6">
@@ -176,13 +199,16 @@ export default function AuthScreen({ onGuest, onLoggedIn }) {
       {mode === 'register' && (
         <form onSubmit={handleRegister} className="w-full max-w-sm space-y-3">
           <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="본명 (실명)"
-            maxLength={24}
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3"
+            inputMode="numeric"
+            autoComplete="bday"
+            value={birthDate8}
+            onChange={(e) => setBirthDate8(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            placeholder="생년월일 8자리 (YYYYMMDD)"
+            maxLength={8}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 tracking-widest"
             required
           />
+          <p className="text-[11px] text-slate-500 text-center -mt-1">예: 20150315</p>
           <input
             type="email"
             autoComplete="email"

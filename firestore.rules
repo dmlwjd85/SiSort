@@ -20,6 +20,44 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    /** 팩별 사용자 최대 클리어 레벨(명예의 전당 쓰기 검증용) */
+    function userPackLevel(uid, pk) {
+      let u = get(/databases/$(database)/documents/users/$(uid));
+      return u.data.packProgress != null && u.data.packProgress[pk] is int
+        ? int(u.data.packProgress[pk])
+        : 0;
+    }
+
+    function hallOfFameWriteValid(packKey) {
+      return isSignedIn()
+        && request.resource.data.keys().hasAll(['maxLevel', 'holderName', 'holderUid'])
+        && request.resource.data.holderUid == request.auth.uid
+        && request.resource.data.maxLevel is int
+        && request.resource.data.maxLevel >= 1
+        && request.resource.data.maxLevel <= 32
+        && request.resource.data.holderName is string
+        && request.resource.data.holderName.size() <= 48
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userPackLevel(request.auth.uid, packKey) >= request.resource.data.maxLevel
+        && (
+          !resource.exists
+          || (
+            request.resource.data.maxLevel >= resource.data.maxLevel
+            && (
+              request.resource.data.maxLevel > resource.data.maxLevel
+              || resource.data.holderUid == request.auth.uid
+            )
+          )
+        );
+    }
+
+    /** 명예의 전당: 팩별 최고 레벨·달성자 표시명(누구나 읽기, 본인 진행도에 맞는 기록만 쓰기) */
+    match /hallOfFame/{packKey} {
+      allow read: if true;
+      allow create, update: if hallOfFameWriteValid(packKey);
+      allow delete: if false;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);

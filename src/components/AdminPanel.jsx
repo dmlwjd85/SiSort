@@ -55,7 +55,8 @@ export default function AdminPanel({ open, onClose }) {
               <table className="min-w-full text-left text-sm text-slate-200 border-collapse">
                 <thead>
                   <tr className="border-b border-slate-600 text-slate-400">
-                    <th className="py-2 pr-3">본명/표시</th>
+                    <th className="py-2 pr-3">표시(@앞)</th>
+                    <th className="py-2 pr-3">생년월일</th>
                     <th className="py-2 pr-3">이메일</th>
                     <th className="py-2 pr-3">접속</th>
                     {packKeys.map((k) => (
@@ -69,6 +70,7 @@ export default function AdminPanel({ open, onClose }) {
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-slate-700/80">
                       <td className="py-2 pr-3">{r.displayName || '—'}</td>
+                      <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{r.birthDate || '—'}</td>
                       <td className="py-2 pr-3 text-xs break-all">{r.email || '—'}</td>
                       <td className="py-2 pr-3 text-xs whitespace-nowrap">
                         {r.accessCount != null ? `${r.accessCount}회` : '—'}

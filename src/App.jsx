@@ -11,6 +11,7 @@ import { subscribeAuth, logoutFirebase } from './lib/authService.js';
 import {
   fetchUserPackProgress,
   updatePackProgressRemote,
+  tryUpdateHallOfFame,
   checkIsAdminUser,
 } from './lib/userProfileService.js';
 
@@ -35,6 +36,12 @@ export default function App() {
         await updatePackProgressRemote(authUser.uid, packKey, clearedLevel);
         const pp = await fetchUserPackProgress(authUser.uid);
         setPackProgress(pp || {});
+        const name =
+          safeGetItem('sisort_name', '') ||
+          authUser.displayName ||
+          authUser.email?.split('@')[0] ||
+          '익명';
+        await tryUpdateHallOfFame(authUser.uid, packKey, clearedLevel, name);
       } catch (e) {
         console.error('[onLevelCleared]', e);
       }

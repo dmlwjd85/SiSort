@@ -1,16 +1,25 @@
-import { doc, setDoc, getDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  getDocs,
+  serverTimestamp,
+  runTransaction,
+} from 'firebase/firestore';
 import { getFirestoreDb } from './firebase.js';
 
 const USERS = 'users';
 const ADMINS = 'admins';
+const HALL_OF_FAME = 'hallOfFame';
 const ACCESS_LOG_MAX = 30;
 
 /**
  * 회원 문서 최초 생성(회원가입 직후)
  * @param {string} uid
- * @param {{ email: string, displayName: string }} p
+ * @param {{ email: string, birthDate: string, displayName: string }} p — displayName은 보통 이메일 @ 앞(표시용)
  */
-export async function createUserProfile(uid, { email, displayName }) {
+export async function createUserProfile(uid, { email, birthDate, displayName }) {
   const db = getFirestoreDb();
   if (!db) throw new Error('Firestore 없음');
   const ref = doc(db, USERS, uid);
@@ -18,6 +27,7 @@ export async function createUserProfile(uid, { email, displayName }) {
     ref,
     {
       email: email.trim(),
+      birthDate: String(birthDate).trim(),
       displayName: displayName.trim(),
       packProgress: {},
       createdAt: serverTimestamp(),
@@ -112,4 +122,49 @@ export async function fetchAllUserProfiles() {
   if (!db) throw new Error('Firestore 없음');
   const snap = await getDocs(collection(db, USERS));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * 팩별 최고 레벨 달성 시 명예의 전당 갱신(동점이면 먼저 도달한 기록 유지)
+ * @param {string} uid
+ * @param {string} packKey
+ * @param {number} clearedLevel
+ * @param {string} holderName 로비 표시 이름
+ */
+export async function tryUpdateHallOfFame(uid, packKey, clearedLevel, holderName) {
+  const db = getFirestoreDb();
+  if (!db || !uid || !packKey) return;
+  const n = Number(clearedLevel);
+  if (!Number.isFinite(n) || n < 1) return;
+
+  const userRef = doc(db, USERS, uid);
+  const hallRef = doc(db, HALL_OF_FAME, packKey);
+  const safeName = String(holderName || '').trim().slice(0, 48) || '익명';
+
+  await runTransaction(db, async (transaction) => {
+    const userSnap = await transaction.get(userRef);
+    const userProgress = userSnap.exists() ? userSnap.data().packProgress || {} : {};
+    const recorded = Number(userProgress[packKey]) || 0;
+    // 진행도가 아직 반영되지 않았으면 갱신하지 않음(보안 규칙과 일치)
+    if (recorded < n) return;
+
+    const hallSnap = await transaction.get(hallRef);
+    const prev = hallSnap.exists() ? hallSnap.data() : {};
+    const prevMax = Number(prev.maxLevel) || 0;
+    const prevHolder = prev.holderUid;
+
+    if (n < prevMax) return;
+    if (n === prevMax && prevHolder && prevHolder !== uid) return;
+
+    transaction.set(
+      hallRef,
+      {
+        maxLevel: n,
+        holderUid: uid,
+        holderName: safeName,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
 }
