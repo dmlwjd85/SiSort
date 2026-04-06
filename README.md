@@ -1,16 +1,36 @@
-# React + Vite
+# Sisort (침묵의 가나다)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Vite + React 앱입니다.
 
-Currently, two official plugins are available:
+## 왜 Go Live로 열면 흰 화면만 보이나요?
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Live Server(Go Live)** 는 `index.html`만 정적 파일로 열고, **JSX·Vite 번들을 처리하지 않습니다.**  
+그래서 `/src/main.jsx` 가 실행되지 않아 `#root`가 비어 흰 화면이 됩니다.
 
-## React Compiler
+### 올바른 실행 방법
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. 이 폴더(`sisort`)를 연 상태에서 터미널을 엽니다.
+2. 한 번만: `npm install`
+3. 개발 서버: **`npm run dev`**
+4. 브라우저에서 표시되는 주소(보통 `http://localhost:5173`)로 접속합니다.
 
-## Expanding the ESLint configuration
+빌드 결과만 확인할 때: `npm run build` 후 `npm run preview`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## GitHub Pages 배포
+
+저장소 이름이 **`sisort`** 이고 사용자가 **`dmlwjd85`** 인 경우, 배포 URL은 다음과 같습니다.
+
+`https://dmlwjd85.github.io/sisort/`
+
+1. GitHub에서 저장소 `dmlwjd85/sisort` 를 만듭니다 (또는 이미 있다면 원격만 연결).
+2. 이 `sisort` 폴더를 저장소 루트로 푸시합니다.
+3. 저장소 **Settings → Pages → Build and deployment** 에서 **GitHub Actions** 를 소스로 선택합니다.
+4. `main` 또는 `master` 에 푸시하면 `.github/workflows/deploy-pages.yml` 이 빌드·배포합니다.
+
+## 원격 저장소 연결 예시
+
+```bash
+git remote add origin https://github.com/dmlwjd85/sisort.git
+git branch -M main
+git push -u origin main
+```
