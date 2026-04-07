@@ -95,7 +95,7 @@ export default function PlayScreen(props) {
             </p>
           )}
           <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-            <span className="font-mono text-2xl font-black tabular-nums text-white md:text-3xl">
+            <span className="text-2xl font-black tabular-nums text-white md:text-3xl">
               {tableReviewSecondsLeft}
             </span>
             <span className="text-xs text-slate-400">초 후 자동 진행</span>

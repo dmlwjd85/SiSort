@@ -1,17 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+/* Pretendard: 무료(OFL), 한글 가독성·톤이 부드러운 UI 폰트 */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 @import "tailwindcss";
+
+@theme {
+  --font-sans:
+    'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui,
+    sans-serif;
+}
 
 @layer base {
   body {
     margin: 0;
-    /* 가독·스토어 톤: 본문은 Noto Sans KR 중심 */
-    font-family: 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-family: var(--font-sans);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 
   .font-sans {
-    font-family: 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+    font-family: var(--font-sans) !important;
   }
 
   #root {

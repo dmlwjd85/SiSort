@@ -890,7 +890,7 @@ export default function LobbyScreen({
               onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
               maxLength={4}
               autoComplete="off"
-              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
+              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center text-xl font-semibold uppercase tracking-widest tabular-nums"
             />
             <button
               type="submit"
@@ -915,7 +915,7 @@ export default function LobbyScreen({
               onChange={(e) => setRoomCode(normalizeRoomCode(e.target.value))}
               maxLength={4}
               disabled
-              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center tracking-widest text-xl font-mono uppercase"
+              className="flex-1 min-w-[8rem] rounded-lg bg-slate-900 border border-slate-600 px-3 py-2 text-center text-xl font-semibold uppercase tracking-widest tabular-nums"
             />
             <span className="text-[11px] text-slate-500">온라인 모드에서만 사용합니다.</span>
           </div>

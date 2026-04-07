@@ -9,5 +9,5 @@
   <rect width="512" height="512" rx="108" fill="url(#g)"/>
   <rect x="72" y="112" width="368" height="288" rx="28" fill="#f8fafc" fill-opacity="0.94"/>
   <rect x="96" y="144" width="320" height="224" rx="16" fill="#f1f5f9" stroke="#94a3b8" stroke-width="4"/>
-  <text x="256" y="318" text-anchor="middle" font-size="132" font-weight="800" fill="#0f766e" font-family="Malgun Gothic, Apple SD Gothic Neo, AppleGothic, sans-serif">ㄱㄴㄷ</text>
+  <text x="256" y="318" text-anchor="middle" font-size="132" font-weight="800" fill="#0f766e" font-family="Pretendard, Malgun Gothic, Apple SD Gothic Neo, sans-serif">ㄱㄴㄷ</text>
 </svg>
