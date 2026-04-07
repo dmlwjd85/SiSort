@@ -17,6 +17,8 @@ import {
 import { safeSetItem } from '../utils/safeStorage.js';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomCode.js';
 import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
+import { loadOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
+import { TOTAL_LEVELS } from '../hooks/useSilentDictionaryGame.js';
 import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
 
 /**
@@ -82,6 +84,7 @@ export default function LobbyScreen({
     beginOnlineHostGame,
     joinOnlineAsGuest,
     startOfflineFromLobby,
+    resumeOfflineRun,
     currentWordDB,
     showRules,
     setShowRules,
@@ -449,6 +452,23 @@ export default function LobbyScreen({
 
   const handleStartOffline = () => {
     if (!canStart) return;
+    const saved = loadOfflineRunSave();
+    if (
+      saved &&
+      saved.packKey === selectedPackKey &&
+      saved.nextLevel >= 1 &&
+      saved.nextLevel <= TOTAL_LEVELS
+    ) {
+      if (window.confirm('저장된 오프라인 진행이 있습니다. 이어서 하시겠습니까?')) {
+        resumeOfflineRun(localMembers, selectedPackKey, playerId, saved);
+        onStartPlay();
+        return;
+      }
+      if (!window.confirm('새로 시작하면 저장된 진행이 삭제될 수 있습니다. 계속하시겠습니까?')) {
+        return;
+      }
+      clearOfflineRunSave();
+    }
     startOfflineFromLobby(localMembers, selectedPackKey, playerId);
     onStartPlay();
   };

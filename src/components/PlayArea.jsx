@@ -31,7 +31,6 @@ export default function PlayArea({
   onSkipPrep,
   userHand,
   mySlotIndex,
-  hintActorName = '',
 }) {
   /** 순서에 맞게 제출될 때마다 중앙 카드에 짧은 초록 이펙트 */
   const [correctFx, setCorrectFx] = useState(false);
@@ -77,7 +76,7 @@ export default function PlayArea({
                       c.revealed
                         ? 'bg-white border-2 border-yellow-400 scale-110 z-10'
                         : isHintMode
-                          ? 'bg-yellow-400/20 border border-yellow-400 animate-pulse hover:bg-yellow-400/40 cursor-pointer'
+                          ? 'bg-yellow-400/25 border-2 border-amber-400/90 hover:bg-yellow-400/45 cursor-pointer active:scale-95 touch-manipulation'
                           : 'bg-slate-700 border border-slate-600'
                     }`}
                   >
@@ -163,24 +162,6 @@ export default function PlayArea({
               <div className="px-6 py-4 text-center text-lg font-bold text-white whitespace-pre-line">
                 {message}
               </div>
-            </DraggablePanel>
-          </div>
-        </div>
-      )}
-
-      {isHintMode && hintActorName && (
-        <div className="pointer-events-none fixed inset-0 z-[56] flex items-start justify-center pt-16 md:pt-20 p-2">
-          <div className="pointer-events-auto max-w-[min(100%,20rem)] md:max-w-none">
-            <DraggablePanel className="rounded-xl border border-amber-400 bg-amber-950/95 px-3 py-2 md:px-4 md:py-3 shadow-xl">
-              <p className="text-center text-[11px] md:text-sm font-bold text-amber-100 leading-tight">
-                <span className="md:hidden">
-                  🔍 엿보기 <span className="text-amber-200">→</span>{' '}
-                  <span className="truncate inline-block max-w-[10rem] align-bottom">{hintActorName}</span>
-                </span>
-                <span className="hidden md:inline">
-                  🔍 <strong>{hintActorName}</strong>님이 길라잡이를 사용 중입니다.
-                </span>
-              </p>
             </DraggablePanel>
           </div>
         </div>

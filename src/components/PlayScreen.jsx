@@ -47,12 +47,13 @@ export default function PlayScreen(props) {
     gameOverExplain,
     pendingAfterTableReview,
     finishTableReview,
+    saveOfflineRunAndGoLobby,
   } = props;
 
   const onlineGuestNoLocalRestart = !!(netRoom?.db && netRoom?.roomId && !netRoom?.isHost);
 
   return (
-    <div className="min-h-[100dvh] bg-slate-900 text-slate-100 flex flex-col font-sans overflow-x-hidden overflow-y-auto lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden">
+    <div className="min-h-[100dvh] bg-slate-900 text-slate-100 flex flex-col font-sans overflow-x-hidden overflow-y-auto overscroll-y-contain lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden">
       <GameHeader
         setGameState={setGameState}
         startGame={startGame}
@@ -127,7 +128,6 @@ export default function PlayScreen(props) {
             onSkipPrep={skipPrep}
             userHand={userHand}
             mySlotIndex={mySlotIndex}
-            hintActorName={hintActorName}
           />
         </div>
 
@@ -157,6 +157,15 @@ export default function PlayScreen(props) {
               </span>
             </div>
           )}
+          {gameState === 'playing' && isHintMode && hintActorName && (
+            <div className="shrink-0 z-40 w-full border-b border-amber-500/50 bg-gradient-to-r from-amber-950/95 to-slate-900/95 px-3 py-2.5 text-center shadow-[0_-2px_12px_rgba(0,0,0,0.25)] touch-manipulation">
+              <p className="text-[11px] font-bold leading-snug text-amber-100 md:text-sm break-keep">
+                🔍 위쪽 상대 카드를 눌러 엿보기 ·{' '}
+                <span className="text-amber-50">{hintActorName}</span>
+              </p>
+              <p className="mt-0.5 text-[10px] text-amber-200/80 md:text-xs">내 손패 바로 위 — 스크롤해도 이 안내가 함께 움직입니다</p>
+            </div>
+          )}
           <PlayerHand
             userHand={userHand}
             handlePlayCard={handlePlayCard}
@@ -182,6 +191,8 @@ export default function PlayScreen(props) {
         setGameState={setGameState}
         onGoLobby={onLeaveLobby}
         gameOverExplain={gameOverExplain}
+        canSaveOffline={!netRoom?.db}
+        onSaveRunAndExit={saveOfflineRunAndGoLobby}
       />
     </div>
   );

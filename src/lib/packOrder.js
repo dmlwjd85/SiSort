@@ -16,6 +16,7 @@ export const PACK_UNLOCK_ORDER = [
   'sajaseongeo_beginner',
   'sajaseongeo_intermediate',
   'sajaseongeo_advanced',
+  'korean_history_early',
 ].filter((k) => PACK_DATA[k]);
 
 const UNLOCK_THRESHOLD = 7;

@@ -3,6 +3,7 @@ import ReviewMeaningQuiz from './ReviewMeaningQuiz.jsx';
 import DraggablePanel from './DraggablePanel.jsx';
 import { shuffleArray } from '../utils/helpers.js';
 import { playLevelClearCelebration } from '../lib/gameSounds.js';
+import { clearOfflineRunSave } from '../lib/runSave.js';
 
 /**
  * 레벨 클리어 / 게임 오버 / 최종 승리 모달
@@ -18,6 +19,9 @@ export default function ResultModal({
   setGameState,
   onGoLobby,
   gameOverExplain = null,
+  /** 오프라인 단일 플레이에서만 저장 가능 */
+  canSaveOffline = false,
+  onSaveRunAndExit,
 }) {
   const [quizCard, setQuizCard] = useState(null);
   const lastFanfareLevelRef = useRef(null);
@@ -78,6 +82,23 @@ export default function ResultModal({
           >
             🏠 홈으로 나가기
           </button>
+
+          {canSaveOffline && typeof onSaveRunAndExit === 'function' && level < TOTAL_LEVELS && (
+            <button
+              type="button"
+              onClick={() => {
+                if (reviewOrder.length > 0 && !reviewComplete) {
+                  if (!window.confirm('복습을 마치지 않았습니다. 저장하고 나가면 다음에 이 레벨 이후부터 이어갈 수 있습니다. 계속할까요?')) {
+                    return;
+                  }
+                }
+                onSaveRunAndExit();
+              }}
+              className="mb-4 w-full max-w-sm rounded-xl border border-emerald-500/70 bg-emerald-900/40 py-2.5 text-sm font-bold text-emerald-100 hover:bg-emerald-800/50"
+            >
+              💾 저장하고 로비로 (다음에 이어서 하기)
+            </button>
+          )}
 
           {/* 모바일: 단어 목록·순서를 숨기고 버튼으로만 퀴즈 진입 (정답 노출 방지) */}
           <div className="md:hidden w-full mb-4 space-y-3 text-center">
@@ -143,7 +164,14 @@ export default function ResultModal({
 
           <button
             type="button"
-            onClick={() => (level === TOTAL_LEVELS ? setGameState('victory') : startLevel(level + 1))}
+            onClick={() => {
+              if (level === TOTAL_LEVELS) {
+                clearOfflineRunSave();
+                setGameState('victory');
+              } else {
+                startLevel(level + 1);
+              }
+            }}
             disabled={!reviewComplete}
             className={`px-8 py-3 rounded-full font-bold text-xl transition-all shadow-lg w-full max-w-sm ${
               reviewComplete

@@ -19,6 +19,7 @@ import {
   playWrongPlacedBuzz,
   resetCorrectNoteSequence,
 } from '../lib/gameSounds.js';
+import { writeOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
 
 const DEFAULT_PACK_KEY = 'kindergarten';
 
@@ -626,15 +627,19 @@ export function useSilentDictionaryGame(options = {}) {
   }, []);
 
   const startLevel = useCallback(
-    (targetLevel, keepUsedWords = true, membersArg, usedWordsOverride) => {
+    (targetLevel, keepUsedWords = true, membersArg, usedWordsOverride, packKeyOverride) => {
       const members = membersArg ?? sessionMembersRef.current;
       const uw = usedWordsOverride !== undefined ? usedWordsOverride : usedWords;
-      const bundle = buildLevelBundle(targetLevel, members, selectedPackKey, uw, keepUsedWords);
+      const pk = packKeyOverride !== undefined ? packKeyOverride : selectedPackKey;
+      const bundle = buildLevelBundle(targetLevel, members, pk, uw, keepUsedWords);
       if (!bundle) {
         setMessage('단어를 구성할 수 없습니다. 참가 인원(2~15명)과 난이도를 확인해 주세요.');
         return;
       }
       applyLevelBundle(bundle);
+      if (packKeyOverride !== undefined) {
+        setSelectedPackKey(pk);
+      }
       if (bundle.exhaustionCycle) {
         setMessage('모든 단어를 한 번씩 썼습니다. 이제부터는 무작위로 이어갑니다.');
       }
@@ -778,6 +783,63 @@ export function useSilentDictionaryGame(options = {}) {
     },
     [applyLevelBundle, syncNetRef]
   );
+
+  /** 로컬 저장 데이터로 오프라인 판 재개 */
+  const resumeOfflineRun = useCallback(
+    (members, packKey, playerId, saved) => {
+      if (!saved || saved.v !== 1 || !PACK_DATA[saved.packKey]) return;
+      lastHydratedGameJsonRef.current = '';
+      lastNetworkWriteJsonRef.current = '';
+      failedRoundRecoveryRef.current = false;
+      appliedRemoteCardIdsRef.current.clear();
+      setGuestPlayLocked(false);
+      aiLastCardPlayAtRef.current = 0;
+      aiPlayAtWallRef.current = 0;
+      aiPlayScheduledCardIdRef.current = '';
+      aiNextPlayAllowedAtRef.current = 0;
+      aiLastPlayWasHumanRef.current = false;
+      aiHumanStallForceAtRef.current = 0;
+      aiHumanStallForceCardIdRef.current = '';
+      aiLastPlayWasAiRef.current = false;
+      syncNetRef(null);
+      networkRef.current.playerId = playerId;
+      networkRef.current.hostPlayerId = playerId;
+      setSessionMembers(members);
+      const idx = members.findIndex((m) => m.playerId === playerId);
+      setMySlotIndex(idx >= 0 ? idx : 0);
+      const uw = Array.isArray(saved.usedWords) ? saved.usedWords : [];
+      const nl = Math.min(TOTAL_LEVELS, Math.max(1, Number(saved.nextLevel) || 1));
+      const nextLives = Math.min(99, Math.max(1, Number(saved.lives) || 3));
+      const nextHints = Math.min(99, Math.max(0, Number.isFinite(Number(saved.hints)) ? Number(saved.hints) : 2));
+      setLives(nextLives);
+      setHints(nextHints);
+      startLevel(nl, true, members, uw, packKey);
+    },
+    [startLevel, syncNetRef]
+  );
+
+  /** 레벨 클리어 후 저장하고 로비 — 오프라인 단일 플레이만 (온라인은 로비만) */
+  const saveOfflineRunAndGoLobby = useCallback(() => {
+    const net = networkRef.current;
+    if (net?.db && net?.roomId) {
+      resetToLobby();
+      onReturnedToLobbyRef.current?.();
+      return;
+    }
+    if (level < TOTAL_LEVELS) {
+      writeOfflineRunSave({
+        packKey: selectedPackKey,
+        nextLevel: level + 1,
+        usedWords: [...usedWords],
+        lives,
+        hints,
+      });
+    } else {
+      clearOfflineRunSave();
+    }
+    resetToLobby();
+    onReturnedToLobbyRef.current?.();
+  }, [level, selectedPackKey, usedWords, lives, hints, resetToLobby]);
 
   const setPlayerContext = useCallback((playerId, hostPlayerId) => {
     networkRef.current.playerId = playerId;
@@ -1621,6 +1683,8 @@ export function useSilentDictionaryGame(options = {}) {
     beginOnlineHostGame,
     joinOnlineAsGuest,
     startOfflineFromLobby,
+    resumeOfflineRun,
+    saveOfflineRunAndGoLobby,
     setPlayerContext,
     resetToLobby,
     performLeaveOnline,
