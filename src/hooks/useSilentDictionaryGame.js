@@ -20,6 +20,7 @@ import {
   resetCorrectNoteSequence,
 } from '../lib/gameSounds.js';
 import { writeOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
+import { TOTAL_LEVELS } from '../constants/game.js';
 
 const DEFAULT_PACK_KEY = 'kindergarten';
 
@@ -29,12 +30,8 @@ function resolvePack(packKey) {
   return { key: DEFAULT_PACK_KEY, pack: PACK_DATA[DEFAULT_PACK_KEY] };
 }
 
-const TOTAL_LEVELS = 15;
-
 /** AI 제출 사이 최소 간격(ms) — 연속 턴이 너무 빠르게 보이지 않도록 */
 const MIN_AI_PLAY_GAP_MS = 520;
-
-export { TOTAL_LEVELS };
 
 function slotOwner(i) {
   return `s${i}`;

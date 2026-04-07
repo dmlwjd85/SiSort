@@ -18,7 +18,7 @@ import { safeSetItem } from '../utils/safeStorage.js';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomCode.js';
 import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
 import { loadOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
-import { TOTAL_LEVELS } from '../hooks/useSilentDictionaryGame.js';
+import { TOTAL_LEVELS } from '../constants/game.js';
 import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
 
 /**
