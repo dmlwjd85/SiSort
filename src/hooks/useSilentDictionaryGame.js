@@ -30,6 +30,9 @@ function resolvePack(packKey) {
 
 const TOTAL_LEVELS = 15;
 
+/** AI 제출 사이 최소 간격(ms) — 연속 턴이 너무 빠르게 보이지 않도록 */
+const MIN_AI_PLAY_GAP_MS = 520;
+
 export { TOTAL_LEVELS };
 
 function slotOwner(i) {
@@ -320,6 +323,10 @@ export function useSilentDictionaryGame(options = {}) {
   const aiHumanStallForceCardIdRef = useRef('');
   /** 직전 정상 제출이 AI였는지 — 연속 AI 턴 사이 간격용 */
   const aiLastPlayWasAiRef = useRef(false);
+  /** AI가 카드를 여러 장 연속으로 주르륵 내지 않도록 최소 대기(ms) — wall 시각과 별도 */
+  const aiNextPlayAllowedAtRef = useRef(0);
+  /** 호스트: 처음부터·재시작 직후 Firestore에 즉시 동기화 */
+  const flushNetworkGameAfterRestartRef = useRef(false);
   /** 이번 라운드 전체 카드 수(첫 제출이 AI 선두일 때 연출용) */
   const roundTotalCardsRef = useRef(0);
   const [playedStack, setPlayedStack] = useState([]);
@@ -591,6 +598,7 @@ export function useSilentDictionaryGame(options = {}) {
     aiLastCardPlayAtRef.current = 0;
     aiPlayAtWallRef.current = 0;
     aiPlayScheduledCardIdRef.current = '';
+    aiNextPlayAllowedAtRef.current = 0;
     aiLastPlayWasHumanRef.current = false;
     aiHumanStallForceAtRef.current = 0;
     aiHumanStallForceCardIdRef.current = '';
@@ -678,6 +686,7 @@ export function useSilentDictionaryGame(options = {}) {
       aiLastCardPlayAtRef.current = 0;
       aiPlayAtWallRef.current = 0;
       aiPlayScheduledCardIdRef.current = '';
+      aiNextPlayAllowedAtRef.current = 0;
       aiLastPlayWasHumanRef.current = false;
       aiHumanStallForceAtRef.current = 0;
       aiHumanStallForceCardIdRef.current = '';
@@ -776,11 +785,20 @@ export function useSilentDictionaryGame(options = {}) {
   }, []);
 
   const startGame = () => {
+    const net = networkRef.current;
+    /* 온라인 게스트: 호스트 판만 유효 — 로컬에서 레벨을 다시 섞으면 손패·타이머가 어긋남 */
+    if (net.db && net.roomId && !net.isHost) {
+      return;
+    }
     setLives(3);
     setHints(2);
     setUsedWords([]);
     /* setUsedWords 비동기 반영 전에 빈 목록으로 섞어 뽑기 */
     startLevel(1, false, undefined, []);
+    if (net.db && net.roomId && net.isHost) {
+      flushNetworkGameAfterRestartRef.current = true;
+      lastNetworkWriteJsonRef.current = '';
+    }
   };
 
   /** 로비로 나가기·스냅샷 복귀 시 로컬 판 상태 초기화 */
@@ -793,6 +811,7 @@ export function useSilentDictionaryGame(options = {}) {
     aiLastCardPlayAtRef.current = 0;
     aiPlayAtWallRef.current = 0;
     aiPlayScheduledCardIdRef.current = '';
+    aiNextPlayAllowedAtRef.current = 0;
     aiLastPlayWasHumanRef.current = false;
     aiHumanStallForceAtRef.current = 0;
     aiHumanStallForceCardIdRef.current = '';
@@ -831,6 +850,16 @@ export function useSilentDictionaryGame(options = {}) {
       return;
     }
     try {
+      if (typeof sessionStorage !== 'undefined') {
+        try {
+          sessionStorage.removeItem('sisort_room_id');
+        } catch {
+          /* ignore */
+        }
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sisort-left-online-room'));
+      }
       if (net.isHost) {
         await returnRoomToLobby(net.db, net.roomId, net.hostPlayerId);
       } else {
@@ -1081,6 +1110,7 @@ export function useSilentDictionaryGame(options = {}) {
         if (cardToPlay && si >= 0 && members[si]?.isAI) {
           aiLastCardPlayAtRef.current = 0;
           handlePlayCard(cardToPlay);
+          aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
           return;
         }
       }
@@ -1126,6 +1156,7 @@ export function useSilentDictionaryGame(options = {}) {
 
   const checkAiPlays = useCallback(
     (currentTime) => {
+      if (Date.now() < aiNextPlayAllowedAtRef.current) return;
       const members = sessionMembersRef.current;
       const unplayedCards = allCards.filter((c) => c.status === 'hand');
       if (unplayedCards.length === 0) return;
@@ -1170,7 +1201,10 @@ export function useSilentDictionaryGame(options = {}) {
                 const forced = unplayedCards.find((c) => c.id === aiHumanStallForceCardIdRef.current);
                 aiHumanStallForceAtRef.current = 0;
                 aiHumanStallForceCardIdRef.current = '';
-                if (forced) handlePlayCard(forced);
+                if (forced) {
+                  handlePlayCard(forced);
+                  aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+                }
               }
             } else {
               aiHumanStallForceAtRef.current = 0;
@@ -1201,6 +1235,7 @@ export function useSilentDictionaryGame(options = {}) {
             livesRef.current
           );
           handlePlayCard(blunder || cardToPlay);
+          aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
         }
         return;
       }
@@ -1231,6 +1266,7 @@ export function useSilentDictionaryGame(options = {}) {
       aiPlayScheduledCardIdRef.current = '';
       const blunder = pickAiIntentionalBlunderCard(unplayedCards, lowestRank, si, livesRef.current);
       handlePlayCard(blunder || cardToPlay);
+      aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
     },
     [allCards, handlePlayCard, level]
   );
@@ -1238,6 +1274,9 @@ export function useSilentDictionaryGame(options = {}) {
   useEffect(() => {
     if (gameState !== 'playing' || !isPreparing) return;
     if (docHidden) return;
+    /* 온라인 게스트: 살펴보기 초·본편 시작은 호스트 game 스냅샷만 신뢰 (로컬 카운트다운 시 어긋남) */
+    const net = networkRef.current;
+    if (net.db && net.roomId && !net.isHost) return;
     if (prepTimeLeft <= 0) {
       setIsPreparing(false);
       setMessage('시작!');
@@ -1250,7 +1289,7 @@ export function useSilentDictionaryGame(options = {}) {
     return () => clearTimeout(timer);
   }, [prepTimeLeft, isPreparing, gameState, docHidden]);
 
-  /* 오프라인·호스트: 기존과 동일. 온라인 게스트도 남은 시간 표시는 매 0.1초 갱신(호스트 동기화만으로는 멈춘 것처럼 보이던 현상 완화) */
+  /* 오프라인·호스트만 타이머 감소·시간초과·AI. 온라인 게스트는 호스트 스냅샷으로만 timeLeft·상태 동기화 (0초에서 멈춤·빈 손패 버그 방지) */
   const runTimer =
     !netRoom ||
     (netRoom.db && netRoom.roomId && (netRoom.isHost || gameState === 'playing'));
@@ -1258,8 +1297,11 @@ export function useSilentDictionaryGame(options = {}) {
   useEffect(() => {
     if (!runTimer || gameState !== 'playing' || isPaused || isHintMode || isPreparing) return;
     if (docHidden) return;
+    const net = networkRef.current;
+    const guestOnline = !!(net.db && net.roomId && !net.isHost);
+    if (guestOnline) return;
 
-    /* 시간 초과 처리는 호스트·오프라인만 — 게스트는 호스트가 보낸 game으로만 갱신 */
+    /* 시간 초과 처리는 호스트·오프라인만 */
     if (timeLeft <= 0) {
       if (!netRoom || netRoom.isHost) handleTimeout();
       return;
@@ -1268,7 +1310,6 @@ export function useSilentDictionaryGame(options = {}) {
     const timer = setTimeout(() => {
       const newTime = Math.max(0, timeLeft - 0.1);
       setTimeLeft(newTime);
-      /* AI 연산은 호스트(또는 오프라인)만 — 게스트가 돌리면 중복 제출·상태 꼬임 */
       if (!netRoom || netRoom.isHost) checkAiPlays(newTime);
     }, 100);
 
@@ -1291,6 +1332,7 @@ export function useSilentDictionaryGame(options = {}) {
         aiLastCardPlayAtRef.current = 0;
         aiPlayAtWallRef.current = 0;
         aiPlayScheduledCardIdRef.current = '';
+        aiNextPlayAllowedAtRef.current = 0;
         aiLastPlayWasHumanRef.current = false;
         aiHumanStallForceAtRef.current = 0;
         aiHumanStallForceCardIdRef.current = '';
@@ -1461,6 +1503,9 @@ export function useSilentDictionaryGame(options = {}) {
 
   useEffect(() => {
     if (!netRoom?.db || !netRoom?.roomId || !netRoom.isHost || gameState === 'home') return undefined;
+    const immediate = flushNetworkGameAfterRestartRef.current;
+    if (immediate) flushNetworkGameAfterRestartRef.current = false;
+    const delayMs = immediate ? 0 : 320;
     const t = setTimeout(() => {
       const payload = gameBlobForNetwork;
       let j;
@@ -1472,7 +1517,7 @@ export function useSilentDictionaryGame(options = {}) {
       if (j === lastNetworkWriteJsonRef.current) return;
       lastNetworkWriteJsonRef.current = j;
       updateRoomGame(netRoom.db, netRoom.roomId, netRoom.hostPlayerId, payload).catch(console.error);
-    }, 320);
+    }, delayMs);
     return () => clearTimeout(t);
   }, [gameBlobForNetwork, gameState, netRoom]);
 

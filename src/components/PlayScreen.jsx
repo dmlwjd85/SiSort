@@ -41,12 +41,15 @@ export default function PlayScreen(props) {
     getOwnerLabel,
     mySlotIndex,
     onLeaveLobby,
+    netRoom,
     timeLeft,
     tableReviewSecondsLeft,
     gameOverExplain,
     pendingAfterTableReview,
     finishTableReview,
   } = props;
+
+  const onlineGuestNoLocalRestart = !!(netRoom?.db && netRoom?.roomId && !netRoom?.isHost);
 
   return (
     <div className="min-h-[100dvh] bg-slate-900 text-slate-100 flex flex-col font-sans overflow-x-hidden overflow-y-auto lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden">
@@ -62,6 +65,7 @@ export default function PlayScreen(props) {
         gameState={gameState}
         isPaused={isPaused}
         onLeaveLobby={onLeaveLobby}
+        disableRestart={onlineGuestNoLocalRestart}
       />
 
       {gameState === 'table_review' && (

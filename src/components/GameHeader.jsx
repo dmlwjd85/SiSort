@@ -15,6 +15,8 @@ export default function GameHeader({
   gameState,
   isPaused,
   onLeaveLobby,
+  /** 온라인 게스트: 로컬 재시작 불가(호스트 스냅샷만 유효) */
+  disableRestart = false,
 }) {
   /* Firestore 동기화·실수 다중 차감 시 생명 표시 (상한 99) */
   const safeLives = Math.max(0, Math.min(99, Number.isFinite(Number(lives)) ? Math.floor(Number(lives)) : 0));
@@ -42,8 +44,17 @@ export default function GameHeader({
             <button
               type="button"
               onClick={startGame}
-              className="bg-slate-700/90 hover:bg-slate-600 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm md:text-base font-bold transition-colors"
-              title="1레벨부터 다시 시작하기"
+              disabled={disableRestart}
+              className={`text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm md:text-base font-bold transition-colors ${
+                disableRestart
+                  ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-700/90 hover:bg-slate-600'
+              }`}
+              title={
+                disableRestart
+                  ? '온라인 참가 모드에서는 방장 판과만 동기화됩니다'
+                  : '1레벨부터 다시 시작하기'
+              }
               aria-label="처음부터 다시 시작"
             >
               <span className="md:hidden" aria-hidden>

@@ -170,6 +170,19 @@ export default function LobbyScreen({
     setNameDraft(playerName);
   }, [playerName]);
 
+  /** 플레이에서 온라인 퇴장 시: sessionStorage·로컬 roomId 정리 (같은 방 자동 재입장 루프 방지) */
+  useEffect(() => {
+    const onLeft = () => {
+      guestPlayStartedRef.current = false;
+      setRoomId(null);
+      setRemoteRoom(null);
+      setIsHost(false);
+      setHostPlayerId(null);
+    };
+    window.addEventListener('sisort-left-online-room', onLeft);
+    return () => window.removeEventListener('sisort-left-online-room', onLeft);
+  }, []);
+
   /** 온라인 방장: 내 팩 진행도를 방 문서에 두어 참가자도 동일 해금 팩 선택 가능(변경 시에만 쓰기) */
   useEffect(() => {
     if (!db || !roomId || !isHost || mode !== 'online' || !remoteRoom) return;
@@ -269,6 +282,9 @@ export default function LobbyScreen({
         return;
       }
       setRemoteRoom(data);
+      if (data.phase === 'lobby') {
+        guestPlayStartedRef.current = false;
+      }
       if (data.phase === 'playing' && !isHost && !guestPlayStartedRef.current) {
         const myIdx = list.findIndex(memberIsSelf);
         if (myIdx < 0) return;
