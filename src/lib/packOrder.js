@@ -22,13 +22,24 @@ export const PACK_UNLOCK_ORDER = [
 const UNLOCK_THRESHOLD = 7;
 
 /**
- * @param {{ isGuest: boolean, packProgress?: Record<string, number>, packUnlockBonus?: string[] }} opts
+ * @param {{ isGuest: boolean, packProgress?: Record<string, number>, packUnlockBonus?: string[], isMaster?: boolean }} opts
  * packUnlockBonus: 마스터·관리자가 users 문서에 부여한 추가 플레이 가능 팩(진행 체인과 무관)
+ * isMaster: 마스터·전역 관리 계정 — 진행도와 무관하게 등록된 모든 단어 팩 플레이 허용
  * @returns {Set<string>} 플레이 가능한 팩 키
  */
-export function getUnlockedPackKeys({ isGuest, packProgress = {}, packUnlockBonus = [] }) {
+export function getUnlockedPackKeys({
+  isGuest,
+  packProgress = {},
+  packUnlockBonus = [],
+  isMaster = false,
+}) {
   if (isGuest) {
     return new Set(['kindergarten', 'grade6social'].filter((k) => PACK_DATA[k]));
+  }
+
+  /* 회원 중 마스터는 체인 클리어 없이 PACK_DATA에 있는 팩 전부 선택 가능 */
+  if (isMaster) {
+    return new Set(PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]));
   }
 
   const bonus = new Set(
@@ -60,8 +71,8 @@ export function getUnlockedPackKeys({ isGuest, packProgress = {}, packUnlockBonu
 }
 
 /** 팩이 잠금인지 (회원 기준) */
-export function isPackLocked(packKey, { isGuest, packProgress, packUnlockBonus }) {
-  return !getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus }).has(packKey);
+export function isPackLocked(packKey, { isGuest, packProgress, packUnlockBonus, isMaster = false }) {
+  return !getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus, isMaster }).has(packKey);
 }
 
 /**

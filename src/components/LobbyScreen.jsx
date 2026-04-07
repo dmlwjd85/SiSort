@@ -76,6 +76,8 @@ export default function LobbyScreen({
   onOpenMyStats,
   /** 회원일 때 Firestore 표시 이름 동기화용 */
   authUid = null,
+  /** 마스터·전역 관리 계정 — 단어 팩 전부 해금(일반 회원은 진행도·보너스만) */
+  isMaster = false,
 }) {
   const {
     PACK_DATA,
@@ -138,22 +140,37 @@ export default function LobbyScreen({
 
   const roomMax = mode === 'online' ? ONLINE_ROOM_MAX : ROOM_MAX;
 
-  /** 온라인 방에 연결된 경우 방장이 해금한 팩 기준(문서의 hostPackProgress) */
+  /** 온라인: 방 문서의 방장 진행도·보너스·마스터 여부 — 오프라인: 본인 회원 데이터 */
   const unlockedPackKeys = useMemo(() => {
-    if (
-      mode === 'online' &&
-      roomId &&
-      remoteRoom?.hostPackProgress &&
-      typeof remoteRoom.hostPackProgress === 'object'
-    ) {
+    if (mode === 'online' && roomId && remoteRoom) {
+      const hp =
+        remoteRoom.hostPackProgress && typeof remoteRoom.hostPackProgress === 'object'
+          ? remoteRoom.hostPackProgress
+          : {};
+      const bonus = Array.isArray(remoteRoom.hostPackUnlockBonus) ? remoteRoom.hostPackUnlockBonus : [];
+      const hostAll = remoteRoom.hostIsMaster === true;
       return getUnlockedPackKeys({
         isGuest: false,
-        packProgress: remoteRoom.hostPackProgress,
-        packUnlockBonus: Array.isArray(remoteRoom.hostPackUnlockBonus) ? remoteRoom.hostPackUnlockBonus : [],
+        packProgress: hp,
+        packUnlockBonus: bonus,
+        isMaster: hostAll,
       });
     }
-    return getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus });
-  }, [isGuest, packProgress, packUnlockBonus, mode, roomId, remoteRoom?.hostPackProgress, remoteRoom?.hostPackUnlockBonus]);
+    return getUnlockedPackKeys({
+      isGuest,
+      packProgress,
+      packUnlockBonus,
+      isMaster: Boolean(!isGuest && isMaster),
+    });
+  }, [
+    isGuest,
+    isMaster,
+    packProgress,
+    packUnlockBonus,
+    mode,
+    roomId,
+    remoteRoom,
+  ]);
 
   useEffect(() => {
     if (!unlockedPackKeys.has(selectedPackKey)) {
@@ -186,7 +203,7 @@ export default function LobbyScreen({
     return () => window.removeEventListener('sisort-left-online-room', onLeft);
   }, []);
 
-  /** 온라인 방장: 내 팩 진행도를 방 문서에 두어 참가자도 동일 해금 팩 선택 가능(변경 시에만 쓰기) */
+  /** 온라인 방장: 내 팩 진행도·보너스·마스터 여부를 방 문서에 두어 참가자와 동기화 */
   useEffect(() => {
     if (!db || !roomId || !isHost || mode !== 'online' || !remoteRoom) return;
     const prev = remoteRoom.hostPackProgress && typeof remoteRoom.hostPackProgress === 'object'
@@ -194,18 +211,22 @@ export default function LobbyScreen({
       : {};
     const prevBonus = Array.isArray(remoteRoom.hostPackUnlockBonus) ? remoteRoom.hostPackUnlockBonus : [];
     const nextBonus = Array.isArray(packUnlockBonus) ? packUnlockBonus : [];
+    const prevMaster = remoteRoom.hostIsMaster === true;
+    const nextMaster = Boolean(isMaster && !isGuest);
     if (
       JSON.stringify(prev) === JSON.stringify(packProgress || {})
       && JSON.stringify(prevBonus) === JSON.stringify(nextBonus)
+      && prevMaster === nextMaster
     ) {
       return;
     }
     updateDoc(doc(db, 'rooms', roomId), {
       hostPackProgress: packProgress,
       hostPackUnlockBonus: nextBonus,
+      hostIsMaster: nextMaster,
       updatedAt: serverTimestamp(),
     }).catch(() => {});
-  }, [db, roomId, isHost, mode, remoteRoom, packProgress, packUnlockBonus]);
+  }, [db, roomId, isHost, mode, remoteRoom, packProgress, packUnlockBonus, isMaster, isGuest]);
 
   /** 명예의 전당 실시간 구독(로그인 여부와 무관하게 읽기 전용) */
   useEffect(() => {
@@ -396,6 +417,7 @@ export default function LobbyScreen({
         members: localMembers,
         hostPackProgress: packProgress,
         hostPackUnlockBonus: Array.isArray(packUnlockBonus) ? packUnlockBonus : [],
+        hostIsMaster: Boolean(isMaster && !isGuest),
       });
       setRoomId(code);
       setIsHost(true);

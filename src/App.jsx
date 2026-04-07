@@ -347,6 +347,7 @@ export default function App() {
           authUid={authUser?.uid ?? null}
           packProgress={packProgress}
           packUnlockBonus={packUnlockBonus}
+          isMaster={Boolean(!isGuestUi && authUser && adminCaps.master)}
           onLogout={
             firebaseOk
               ? isGuestUi
