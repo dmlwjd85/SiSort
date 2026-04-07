@@ -26,6 +26,7 @@ export default class ErrorBoundary extends React.Component {
             화면을 불러오는 중 오류가 났습니다. 아래 버튼으로 새로고침해 보세요. 계속되면 다른 브라우저나
             사생활 보호 모드 해제 후 다시 시도해 주세요.
           </p>
+          {/* 프로덕션에서도 짧은 메시지로 원인 파악 가능 — 스택은 개발 모드에서만 전체 표시 */}
           {this.state.error && (
             <pre className="text-left text-xs text-red-300/90 max-w-lg max-h-48 overflow-auto mb-6 p-3 rounded-lg bg-slate-950/80 border border-red-900/50 whitespace-pre-wrap break-all">
               {String(this.state.error?.message ?? this.state.error).slice(0, 1200)}
