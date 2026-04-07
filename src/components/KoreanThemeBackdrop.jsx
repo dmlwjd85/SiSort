@@ -7,18 +7,17 @@ export default function KoreanThemeBackdrop() {
   const row = '가나다라마바사아자차카타파하';
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden select-none" aria-hidden>
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1c1410] via-[#0f172a] to-[#1a1c2e]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(217,119,6,0.18),transparent)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_100%_100%,rgba(59,130,246,0.12),transparent)]" />
-      <div className="absolute inset-0 opacity-[0.06] text-[min(4.5rem,11vw)] font-black leading-[0.95] text-amber-100 tracking-tight">
-        {Array.from({ length: 12 }, (_, i) => (
-          <div key={i} className="whitespace-nowrap overflow-hidden text-center" style={{ opacity: 0.5 + (i % 3) * 0.15 }}>
-            {row.repeat(20)}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-[#0c1924] to-slate-900" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_45%_at_50%_0%,rgba(45,212,191,0.08),transparent)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_35%_at_100%_100%,rgba(56,189,248,0.06),transparent)]" />
+      <div className="absolute inset-0 text-[min(3.5rem,9vw)] font-semibold leading-[1] tracking-tight text-teal-100/5">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="overflow-hidden whitespace-nowrap text-center" style={{ opacity: 0.35 + (i % 2) * 0.2 }}>
+            {row.repeat(14)}
           </div>
         ))}
       </div>
-      <div className="absolute -right-16 top-24 h-48 w-48 rounded-full border-4 border-red-800/20 bg-red-950/10 blur-[1px]" />
-      <div className="absolute -left-8 bottom-32 h-32 w-32 rounded-full border-2 border-amber-600/15" />
+      <div className="absolute -left-10 bottom-28 h-40 w-40 rounded-full border border-teal-500/10 bg-teal-950/20 blur-[2px]" />
     </div>
   );
 }

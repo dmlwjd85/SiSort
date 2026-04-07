@@ -168,69 +168,63 @@ export default function PlayArea({
       )}
 
       {isPreparing && (
-        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-xl p-3">
-          <div className="max-w-xl w-full px-1 pointer-events-auto">
-            <DraggablePanel className="rounded-xl border border-yellow-600/40 bg-slate-900/95 p-3 md:p-4 shadow-xl">
-              <h2 className="md:hidden text-base font-black text-amber-300 mb-1 text-center">살펴보기</h2>
-              <p className="md:hidden text-center text-[12px] font-bold text-amber-100/95 leading-snug break-keep px-0.5 mb-2">
-                다른 플레이어와 힘을 합쳐 순서를 완성해보세요!!
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center rounded-xl bg-slate-950/85 p-3 backdrop-blur-sm md:backdrop-blur-md">
+          <div className="pointer-events-auto w-full max-w-xl px-1">
+            <DraggablePanel className="rounded-xl border border-teal-600/30 bg-slate-900/98 p-3 shadow-xl md:p-4">
+              <h2 className="mb-1 text-center text-base font-bold text-teal-200 md:hidden">살펴보기</h2>
+              <p className="mb-2 px-0.5 text-center text-[12px] font-medium leading-snug text-slate-200 break-keep md:hidden">
+                아래 <strong className="text-teal-300">내 카드</strong>에서 순서를 맞춘 뒤 시작하세요.
               </p>
-              <p className="md:hidden text-center text-[10px] text-slate-400 leading-snug break-keep px-0.5 mb-3">
-                생명력은 팀이 함께 씁니다. 가상 플레이어가 순서를 틀려도 팀 생명이 줄 수 있어요 — 서로 맞춰 가면 돼요.
+              <p className="mb-3 px-0.5 text-center text-[10px] leading-snug text-slate-500 break-keep md:hidden">
+                팀 생명은 공유됩니다. 가상 플레이어 실수에도 생명이 줄 수 있어요.
               </p>
-              <div className="md:hidden flex flex-wrap justify-center gap-1.5 mb-3 text-[10px]">
-                <span className="rounded-full bg-amber-500/20 text-amber-100 px-2 py-1 border border-amber-500/35">
-                  정렬하기
-                </span>
-                <span className="rounded-full bg-amber-500/20 text-amber-100 px-2 py-1 border border-amber-500/35">
-                  ↔순서
-                </span>
-                <span className="rounded-full bg-slate-700 text-slate-300 px-2 py-1 border border-slate-600">
-                  탭✕제출
-                </span>
+              <div className="mb-3 flex flex-wrap justify-center gap-1.5 text-[10px] md:hidden">
+                <span className="rounded-full border border-teal-500/30 bg-teal-500/15 px-2 py-1 text-teal-100">정렬</span>
+                <span className="rounded-full border border-teal-500/30 bg-teal-500/15 px-2 py-1 text-teal-100">드래그</span>
+                <span className="rounded-full border border-slate-600 bg-slate-800 px-2 py-1 text-slate-400">탭✕제출</span>
               </div>
-              <h2 className="hidden md:block text-xl md:text-2xl font-bold text-yellow-400 mb-2 text-center break-keep">
-                다른 플레이어와 힘을 합쳐 순서를 완성해보세요!!
+              <h2 className="mb-2 hidden text-center text-xl font-semibold text-teal-200 break-keep md:block md:text-2xl">
+                손패에서 사전 순서를 맞춰 주세요
               </h2>
-              <p className="hidden md:block text-center text-sm text-amber-100/95 mb-2 break-keep leading-relaxed font-medium">
-                아래 손패에서 <strong className="text-amber-300">가나다 한번에 정렬</strong> 버튼으로 맞추거나,{' '}
-                <strong className="text-amber-300">드래그</strong>해 순서를 바꿀 수 있습니다.
+              <p className="mb-2 hidden text-center text-sm font-medium leading-relaxed text-slate-300 break-keep md:block">
+                <strong className="text-teal-300">가나다 한번에 정렬</strong> 또는 <strong className="text-teal-300">드래그</strong>로 순서를 바꿀 수 있습니다.
               </p>
-              <p className="hidden md:block text-center text-[11px] text-slate-400 mb-3 break-keep leading-relaxed">
-                생명력은 팀이 함께 씁니다. 가상 플레이어가 순서를 틀려도 팀 생명이 줄 수 있어요.
+              <p className="mb-3 hidden text-center text-[11px] leading-relaxed text-slate-500 break-keep md:block">
+                생명력은 팀이 함께 씁니다.
               </p>
               {typeof onSkipPrep === 'function' && (
                 <button
                   type="button"
                   onClick={onSkipPrep}
-                  className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 py-2.5 md:py-3 font-bold text-sm md:text-base text-white shadow-lg"
+                  className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white shadow-md transition-colors duration-150 hover:bg-teal-500 active:bg-teal-700 md:py-3 md:text-base"
                 >
-                  <span className="md:hidden">▶ 바로 시작</span>
-                  <span className="hidden md:inline">준비 완료 · 바로 시작</span>
+                  <span className="md:hidden">시작하기</span>
+                  <span className="hidden md:inline">준비 완료 · 시작하기</span>
                 </button>
               )}
             </DraggablePanel>
           </div>
 
-          <div className="pointer-events-none flex justify-center gap-3 flex-wrap mb-4 mt-4 w-full px-2 max-h-[38vh] overflow-y-auto">
+          {/* 데스크톱만: 살펴보기 중 손패 미리보기 — 모바일은 실제 손패와 겹쳐 제거 */}
+          <div className="pointer-events-none mb-3 mt-2 hidden max-h-[38vh] w-full flex-wrap justify-center gap-3 overflow-y-auto px-2 md:flex">
             {userHand.map((card) => (
               <div
                 key={card.id}
-                className="w-24 h-36 sm:w-28 sm:h-40 md:w-32 md:h-44 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-2 sm:p-3 text-slate-800 border-4 border-blue-400 shrink-0"
+                className="flex h-40 w-28 shrink-0 flex-col items-center justify-center rounded-2xl border-4 border-blue-400 bg-white p-2 text-slate-800 shadow-2xl sm:h-44 sm:w-32 md:h-44 md:w-32"
               >
-                <span className="text-xl sm:text-2xl md:text-3xl font-black mb-1">{card.word}</span>
-                <span className="text-[10px] sm:text-xs text-slate-600 text-center leading-tight break-keep line-clamp-4">{card.desc}</span>
+                <span className="mb-1 text-2xl font-black sm:text-3xl">{card.word}</span>
+                <span className="line-clamp-4 text-center text-[10px] leading-tight text-slate-600 sm:text-xs">{card.desc}</span>
               </div>
             ))}
           </div>
 
           {prepTimeLeft >= 1 && (
-            <p className="text-amber-200/95 text-xs md:text-sm font-bold mb-1 drop-shadow-lg tabular-nums">
-              <span className="md:hidden">⏱ {prepTimeLeft}s</span>
+            <p className="mb-1 text-xs font-semibold text-teal-100/90 tabular-nums md:text-sm">
+              <span className="md:hidden">{prepTimeLeft}초 후 시작</span>
               <span className="hidden md:inline">자동 시작까지 · {prepTimeLeft}초</span>
             </p>
           )}
-          <div className="font-black text-6xl sm:text-7xl md:text-8xl text-amber-300 drop-shadow-2xl tabular-nums animate-pulse">
+          <div className="font-black tabular-nums text-teal-200 text-5xl sm:text-6xl md:text-8xl md:animate-pulse">
             {prepTimeLeft >= 1 ? prepTimeLeft : 0}
           </div>
         </div>

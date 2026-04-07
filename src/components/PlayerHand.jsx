@@ -156,7 +156,7 @@ export default function PlayerHand({
                     ? '드래그: 순서 이동 · 가나다 정렬은 위쪽 버튼'
                     : undefined
                 }
-                className={`w-[6.25rem] h-[8.75rem] sm:w-32 sm:h-44 bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg flex flex-col items-center justify-center p-2 sm:p-3 text-slate-800 transition-transform select-none touch-manipulation ${
+                className={`w-[6.25rem] h-[8.75rem] sm:w-32 sm:h-44 bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg flex flex-col items-center justify-center p-2 sm:p-3 text-slate-800 transition-transform duration-150 ease-out select-none touch-manipulation ${
                   cannotPlayCard && !canReorder ? 'opacity-60' : ''
                 } ${
                   canReorder

@@ -20,6 +20,7 @@ import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
 import { loadOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
 import { TOTAL_LEVELS } from '../constants/game.js';
 import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
+import QuickStartGlyph from './QuickStartGlyph.jsx';
 
 /**
  * 명예의 전당 — 웹에서는 우측 열, 모바일에서는 하단 탭으로만 표시
@@ -608,7 +609,7 @@ export default function LobbyScreen({
             onlineOk && lobbyTab === 'hall' ? 'hidden lg:flex' : ''
           }`}
         >
-      <h1 className="text-4xl md:text-5xl font-black mt-4 mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 text-center">
+      <h1 className="mt-4 mb-2 text-center text-4xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-300 via-sky-200 to-slate-200 md:text-5xl md:font-extrabold">
         침묵의 가나다
       </h1>
       <p className="text-slate-400 text-sm mb-2 text-center break-keep">
@@ -625,9 +626,10 @@ export default function LobbyScreen({
             type="button"
             onClick={handleStartOffline}
             disabled={!canStart}
-            className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl sm:text-2xl font-black text-white shadow-lg active:scale-[0.99] transition"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-cyan-700 py-4 text-xl font-bold text-white shadow-lg transition-[transform,filter] duration-150 hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 sm:text-2xl sm:font-extrabold"
           >
-            ⚡ 빠른 시작
+            <QuickStartGlyph />
+            빠른 시작
           </button>
         )}
         {mode === 'online' && isHost && roomId && (
@@ -635,9 +637,10 @@ export default function LobbyScreen({
             type="button"
             onClick={handleStartOnline}
             disabled={!canStart || busy || (remoteRoom?.phase === 'playing')}
-            className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl sm:text-2xl font-black text-white shadow-lg active:scale-[0.99] transition"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-cyan-700 py-4 text-xl font-bold text-white shadow-lg transition-[transform,filter] duration-150 hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 sm:text-2xl sm:font-extrabold"
           >
-            ⚡ 빠른 시작 (방장)
+            <QuickStartGlyph />
+            빠른 시작 (방장)
           </button>
         )}
         {mode === 'online' && !(isHost && roomId) && (
@@ -826,9 +829,10 @@ export default function LobbyScreen({
             type="button"
             onClick={handleStartOffline}
             disabled={!canStart}
-            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-500 py-4 text-xl font-bold text-slate-950 shadow-lg transition-[transform,background-color] duration-150 hover:bg-teal-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            ⚡ 빠른 시작
+            <QuickStartGlyph className="bg-slate-900/20 ring-slate-950/25 [&_span]:text-slate-900" />
+            빠른 시작
           </button>
         )}
         {mode === 'online' && isHost && roomId && (
@@ -836,9 +840,10 @@ export default function LobbyScreen({
             type="button"
             onClick={handleStartOnline}
             disabled={!canStart || busy || (remoteRoom?.phase === 'playing')}
-            className="w-full rounded-2xl bg-blue-500 hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-xl font-black text-slate-950 shadow-lg active:scale-[0.99] transition"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-500 py-4 text-xl font-bold text-slate-950 shadow-lg transition-[transform,background-color] duration-150 hover:bg-teal-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            ⚡ 빠른 시작 (방장)
+            <QuickStartGlyph className="bg-slate-900/20 ring-slate-950/25 [&_span]:text-slate-900" />
+            빠른 시작 (방장)
           </button>
         )}
         {mode === 'online' && !(isHost && roomId) && (
