@@ -1156,10 +1156,18 @@ export function useSilentDictionaryGame(options = {}) {
 
   const checkAiPlays = useCallback(
     (currentTime) => {
-      if (Date.now() < aiNextPlayAllowedAtRef.current) return;
       const members = sessionMembersRef.current;
       const unplayedCards = allCards.filter((c) => c.status === 'hand');
       if (unplayedCards.length === 0) return;
+
+      const onlyAiUnplayed = unplayedCards.every((c) => {
+        const s = parseSlot(c.owner);
+        return s >= 0 && members[s]?.isAI === true;
+      });
+      /** 남은 패가 전부 가상 플레이어 것이고 시간이 2초 이하 — 연속 제출 허용(최소 간격·벽 지연 완화) */
+      const rushAiOnlyEnd = onlyAiUnplayed && currentTime <= 2;
+
+      if (!rushAiOnlyEnd && Date.now() < aiNextPlayAllowedAtRef.current) return;
 
       if (unplayedCards.length !== 1) {
         aiLastCardPlayAtRef.current = 0;
@@ -1203,7 +1211,9 @@ export function useSilentDictionaryGame(options = {}) {
                 aiHumanStallForceCardIdRef.current = '';
                 if (forced) {
                   handlePlayCard(forced);
-                  aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+                  if (!rushAiOnlyEnd) {
+                    aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+                  }
                 }
               }
             } else {
@@ -1218,11 +1228,13 @@ export function useSilentDictionaryGame(options = {}) {
       aiHumanStallForceAtRef.current = 0;
       aiHumanStallForceCardIdRef.current = '';
 
-      /* 마지막 한 장(AI): 사람처럼 수백 ms 단위 지연 — 라운드 끝 직전에는 기존처럼 맞춤 */
+      /* 마지막 한 장(AI): 사람처럼 수백 ms 단위 지연 — rush 시 지연 없이 즉시 */
       if (unplayedCards.length === 1) {
         const remainingMs = Math.max(0, currentTime * 1000);
         const roundEndAt = Date.now() + remainingMs;
-        if (aiLastCardPlayAtRef.current === 0) {
+        if (rushAiOnlyEnd) {
+          aiLastCardPlayAtRef.current = 0;
+        } else if (aiLastCardPlayAtRef.current === 0) {
           const jitter = sampleAiReactionDelayMs({ multiCard: false, secondsLeft: currentTime });
           aiLastCardPlayAtRef.current = Math.min(Date.now() + jitter, Math.max(Date.now() + 30, roundEndAt - 80));
         }
@@ -1235,38 +1247,46 @@ export function useSilentDictionaryGame(options = {}) {
             livesRef.current
           );
           handlePlayCard(blunder || cardToPlay);
-          aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+          if (!rushAiOnlyEnd) {
+            aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+          }
         }
         return;
       }
 
-      /* AI 다장: 선두·연속 AI 턴은 텀을 넉넉히 — 사람이 끼어들 여지 */
+      /* AI 다장: 선두·연속 AI 턴은 텀을 넉넉히 — rush 시 벽 없이 연속 제출 */
       if (aiPlayScheduledCardIdRef.current !== cardToPlay.id) {
-        const afterHumanLead =
-          aiLastPlayWasHumanRef.current && Math.random() < 0.78 ? 220 + Math.random() * 780 : 0;
-        let chainGap = 0;
-        if (aiLastPlayWasAiRef.current) {
-          chainGap += 520 + Math.random() * 1780;
+        if (!rushAiOnlyEnd) {
+          const afterHumanLead =
+            aiLastPlayWasHumanRef.current && Math.random() < 0.78 ? 220 + Math.random() * 780 : 0;
+          let chainGap = 0;
+          if (aiLastPlayWasAiRef.current) {
+            chainGap += 520 + Math.random() * 1780;
+          }
+          let openingLead = 0;
+          if (unplayedCards.length === roundTotalCardsRef.current && members[si]?.isAI) {
+            openingLead += 400 + Math.random() * 950;
+          }
+          const delayMs = sampleAiReactionDelayMs({
+            multiCard: true,
+            secondsLeft: currentTime,
+            afterHumanBonusMs: afterHumanLead + chainGap + openingLead,
+          });
+          aiPlayAtWallRef.current = Date.now() + delayMs;
+          aiPlayScheduledCardIdRef.current = cardToPlay.id;
+          return;
         }
-        let openingLead = 0;
-        if (unplayedCards.length === roundTotalCardsRef.current && members[si]?.isAI) {
-          openingLead += 400 + Math.random() * 950;
-        }
-        const delayMs = sampleAiReactionDelayMs({
-          multiCard: true,
-          secondsLeft: currentTime,
-          afterHumanBonusMs: afterHumanLead + chainGap + openingLead,
-        });
-        aiPlayAtWallRef.current = Date.now() + delayMs;
         aiPlayScheduledCardIdRef.current = cardToPlay.id;
-        return;
+        aiPlayAtWallRef.current = 0;
       }
       if (Date.now() < aiPlayAtWallRef.current) return;
 
       aiPlayScheduledCardIdRef.current = '';
       const blunder = pickAiIntentionalBlunderCard(unplayedCards, lowestRank, si, livesRef.current);
       handlePlayCard(blunder || cardToPlay);
-      aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+      if (!rushAiOnlyEnd) {
+        aiNextPlayAllowedAtRef.current = Date.now() + MIN_AI_PLAY_GAP_MS;
+      }
     },
     [allCards, handlePlayCard, level]
   );
