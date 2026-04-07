@@ -1535,28 +1535,55 @@ export function useSilentDictionaryGame(options = {}) {
     /* 0.1초 단위 반올림 — 게스트 화면이 덜 끊겨 보이도록 호스트 동기화 해상도 유지 */
     const roundedTime =
       Number.isFinite(timeLeft) && timeLeft > 0 ? Math.round(timeLeft * 10) / 10 : timeLeft;
-    return serializeGame({
-      gameState,
-      level,
-      lives,
-      timeLeft: roundedTime,
-      isPaused,
-      message,
-      usedWords,
-      hints,
-      isHintMode,
-      hintActorName,
-      reviewedWords,
-      isPreparing,
-      prepTimeLeft,
-      allCards,
-      playedStack,
-      selectedPackKey,
-      handDisplayOrder,
-      tableReviewSecondsLeft,
-      pendingAfterTableReview,
-      gameOverExplain,
-    });
+    try {
+      return serializeGame({
+        gameState,
+        level,
+        lives,
+        timeLeft: roundedTime,
+        isPaused,
+        message,
+        usedWords,
+        hints,
+        isHintMode,
+        hintActorName,
+        reviewedWords: Array.isArray(reviewedWords) ? reviewedWords : [],
+        isPreparing,
+        prepTimeLeft,
+        allCards,
+        playedStack,
+        selectedPackKey,
+        handDisplayOrder,
+        tableReviewSecondsLeft,
+        pendingAfterTableReview,
+        gameOverExplain,
+      });
+    } catch (e) {
+      console.error('[serializeGame]', e);
+      return {
+        v: 1,
+        gameState: 'home',
+        level: 1,
+        lives: 3,
+        timeLeft: 0,
+        isPaused: false,
+        message: '',
+        usedWords: [],
+        hints: 0,
+        isHintMode: false,
+        reviewedWords: [],
+        isPreparing: false,
+        prepTimeLeft: 0,
+        allCards: [],
+        playedStack: [],
+        selectedPackKey: DEFAULT_PACK_KEY,
+        handDisplayOrder: {},
+        hintActorName: '',
+        tableReviewSecondsLeft: 0,
+        pendingAfterTableReview: null,
+        gameOverExplain: null,
+      };
+    }
   }, [
     gameState,
     level,

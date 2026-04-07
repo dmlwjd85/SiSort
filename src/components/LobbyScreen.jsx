@@ -313,13 +313,13 @@ export default function LobbyScreen({
     if (localMembers.length >= roomMax) return;
     setLocalMembers((prev) => [
       ...prev,
-      { playerId: `ai-${Date.now()}-${prev.length}`, name: `AI ${prev.filter((m) => m.isAI).length + 1}`, isAI: true },
+      { playerId: `ai-${Date.now()}-${prev.length}`, name: `AI ${prev.filter((m) => m?.isAI).length + 1}`, isAI: true },
     ]);
   };
 
   const removeAiOffline = () => {
     setLocalMembers((prev) => {
-      const idx = [...prev].map((m, i) => (m.isAI ? i : -1)).filter((i) => i >= 0).pop();
+      const idx = [...prev].map((m, i) => (m?.isAI ? i : -1)).filter((i) => i >= 0).pop();
       if (idx === undefined || prev.length <= ROOM_MIN) return prev;
       return prev.filter((_, i) => i !== idx);
     });
@@ -330,7 +330,7 @@ export default function LobbyScreen({
     if (members.length >= ONLINE_ROOM_MAX) return;
     const next = [
       ...members,
-      { playerId: `ai-${Date.now()}`, name: `AI ${members.filter((m) => m.isAI).length + 1}`, isAI: true },
+      { playerId: `ai-${Date.now()}`, name: `AI ${members.filter((m) => m?.isAI).length + 1}`, isAI: true },
     ];
     setBusy(true);
     setErr('');
@@ -347,7 +347,7 @@ export default function LobbyScreen({
 
   const removeAiOnline = async () => {
     if (!onlineOk || !roomId || !isHost || !remoteRoom) return;
-    const idx = members.map((m, i) => (m.isAI ? i : -1)).filter((i) => i >= 0).pop();
+    const idx = members.map((m, i) => (m?.isAI ? i : -1)).filter((i) => i >= 0).pop();
     if (idx === undefined || members.length <= ROOM_MIN) return;
     const next = members.filter((_, i) => i !== idx);
     setBusy(true);
@@ -751,7 +751,8 @@ export default function LobbyScreen({
           </div>
         </div>
         <ul className="space-y-1 text-sm">
-          {members.map((m, i) => {
+          {(Array.isArray(members) ? members : []).map((m, i) => {
+            if (!m) return null;
             const isHostMember =
               mode === 'online' &&
               roomId &&

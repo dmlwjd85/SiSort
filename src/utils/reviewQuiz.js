@@ -7,9 +7,17 @@ import { shuffleArray } from './helpers.js';
  * @returns {{ key: string, text: string, isCorrect: boolean }[]}
  */
 export function buildMeaningChoices(targetCard, allCards) {
+  if (!targetCard || typeof targetCard !== 'object') {
+    return [
+      { key: 'ok', text: '뜻이 없습니다.', isCorrect: true },
+      { key: 'w0', text: '보기를 불러오지 못했습니다.', isCorrect: false },
+      { key: 'w1', text: '다시 시도해 주세요.', isCorrect: false },
+    ];
+  }
+  const pool = Array.isArray(allCards) ? allCards : [];
   const correctDesc = (targetCard.desc && String(targetCard.desc).trim()) || '뜻이 없습니다.';
-  const wrongPool = allCards
-    .filter((c) => c.id !== targetCard.id)
+  const wrongPool = pool
+    .filter((c) => c && c.id !== targetCard.id)
     .map((c) => (c.desc && String(c.desc).trim()) || '')
     .filter((d) => d && d !== correctDesc);
   const uniqueWrong = [...new Set(wrongPool)];

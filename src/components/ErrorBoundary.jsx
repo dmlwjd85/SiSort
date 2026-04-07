@@ -26,10 +26,12 @@ export default class ErrorBoundary extends React.Component {
             화면을 불러오는 중 오류가 났습니다. 아래 버튼으로 새로고침해 보세요. 계속되면 다른 브라우저나
             사생활 보호 모드 해제 후 다시 시도해 주세요.
           </p>
-          {import.meta.env.DEV && this.state.error && (
-            <pre className="text-left text-xs text-red-300/90 max-w-lg max-h-40 overflow-auto mb-6 p-3 rounded-lg bg-slate-950/80 border border-red-900/50 whitespace-pre-wrap break-all">
-              {String(this.state.error?.message ?? this.state.error)}
-              {this.state.error?.stack ? `\n\n${this.state.error.stack}` : ''}
+          {this.state.error && (
+            <pre className="text-left text-xs text-red-300/90 max-w-lg max-h-48 overflow-auto mb-6 p-3 rounded-lg bg-slate-950/80 border border-red-900/50 whitespace-pre-wrap break-all">
+              {String(this.state.error?.message ?? this.state.error).slice(0, 1200)}
+              {import.meta.env.DEV && this.state.error?.stack
+                ? `\n\n${String(this.state.error.stack).slice(0, 4000)}`
+                : ''}
             </pre>
           )}
           <div className="flex flex-wrap gap-3 justify-center">

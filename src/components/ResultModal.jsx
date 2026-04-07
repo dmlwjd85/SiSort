@@ -4,6 +4,7 @@ import DraggablePanel from './DraggablePanel.jsx';
 import { shuffleArray } from '../utils/helpers.js';
 import { playLevelClearCelebration } from '../lib/gameSounds.js';
 import { clearOfflineRunSave } from '../lib/runSave.js';
+import { TOTAL_LEVELS as DEFAULT_TOTAL_LEVELS } from '../constants/game.js';
 
 /**
  * 레벨 클리어 / 게임 오버 / 최종 승리 모달
@@ -26,6 +27,16 @@ export default function ResultModal({
   const [quizCard, setQuizCard] = useState(null);
   const lastFanfareLevelRef = useRef(null);
 
+  /** props 누락·스냅샷 불일치 시에도 렌더 예외 방지 */
+  const safeReviewedWords = useMemo(
+    () => (Array.isArray(reviewedWords) ? reviewedWords : []),
+    [reviewedWords]
+  );
+  const capLevel =
+    typeof TOTAL_LEVELS === 'number' && Number.isFinite(TOTAL_LEVELS) && TOTAL_LEVELS > 0
+      ? TOTAL_LEVELS
+      : DEFAULT_TOTAL_LEVELS;
+
   /** 이번 레벨에서 복습할 카드: 1레벨 1장 … N레벨 N장(상한: 이번 레벨 카드 수) 무작위 추출 */
   const reviewOrder = useMemo(() => {
     if (!allCards?.length) return [];
@@ -36,14 +47,14 @@ export default function ResultModal({
   }, [allCards, level]);
 
   const reviewDoneCount = useMemo(
-    () => reviewOrder.filter((c) => reviewedWords.includes(c.id)).length,
-    [reviewOrder, reviewedWords]
+    () => reviewOrder.filter((c) => safeReviewedWords.includes(c.id)).length,
+    [reviewOrder, safeReviewedWords]
   );
   const reviewComplete = reviewOrder.length === 0 || reviewDoneCount >= reviewOrder.length;
 
   const nextUnreviewedCard = useMemo(
-    () => reviewOrder.find((c) => !reviewedWords.includes(c.id)) ?? null,
-    [reviewOrder, reviewedWords]
+    () => reviewOrder.find((c) => !safeReviewedWords.includes(c.id)) ?? null,
+    [reviewOrder, safeReviewedWords]
   );
 
   useEffect(() => {
@@ -83,7 +94,7 @@ export default function ResultModal({
             🏠 홈으로 나가기
           </button>
 
-          {canSaveOffline && typeof onSaveRunAndExit === 'function' && level < TOTAL_LEVELS && (
+          {canSaveOffline && typeof onSaveRunAndExit === 'function' && level < capLevel && (
             <button
               type="button"
               onClick={() => {
@@ -128,7 +139,7 @@ export default function ResultModal({
             </p>
             <ul className="space-y-2">
               {reviewOrder.map((c, i) => {
-                  const isReviewed = reviewedWords.includes(c.id);
+                  const isReviewed = safeReviewedWords.includes(c.id);
                   return (
                     <li
                       key={c.id}
@@ -165,7 +176,7 @@ export default function ResultModal({
           <button
             type="button"
             onClick={() => {
-              if (level === TOTAL_LEVELS) {
+              if (level === capLevel) {
                 clearOfflineRunSave();
                 setGameState('victory');
               } else {
@@ -179,7 +190,7 @@ export default function ResultModal({
                 : 'bg-slate-600 text-slate-400 cursor-not-allowed'
             }`}
           >
-            {level === TOTAL_LEVELS ? '최종 결과 보기' : '다음 레벨로'}
+            {level === capLevel ? '최종 결과 보기' : '다음 레벨로'}
           </button>
           </DraggablePanel>
         </div>
