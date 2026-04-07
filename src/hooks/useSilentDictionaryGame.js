@@ -815,6 +815,47 @@ export function useSilentDictionaryGame(options = {}) {
     [startLevel, syncNetRef]
   );
 
+  /** 로비로 나가기·스냅샷 복귀 시 로컬 판 상태 초기화 — 아래 saveOfflineRunAndGoLobby가 [resetToLobby]를 쓰므로 반드시 먼저 선언(TDZ 방지) */
+  const resetToLobby = useCallback(() => {
+    lastHydratedGameJsonRef.current = '';
+    lastNetworkWriteJsonRef.current = '';
+    failedRoundRecoveryRef.current = false;
+    appliedRemoteCardIdsRef.current.clear();
+    setGuestPlayLocked(false);
+    aiLastCardPlayAtRef.current = 0;
+    aiPlayAtWallRef.current = 0;
+    aiPlayScheduledCardIdRef.current = '';
+    aiNextPlayAllowedAtRef.current = 0;
+    aiLastPlayWasHumanRef.current = false;
+    aiHumanStallForceAtRef.current = 0;
+    aiHumanStallForceCardIdRef.current = '';
+    aiLastPlayWasAiRef.current = false;
+    roundTotalCardsRef.current = 0;
+    syncNetRef(null);
+    setGameState('home');
+    setTableReviewSecondsLeft(0);
+    setPendingAfterTableReview(null);
+    pendingAfterTableReviewRef.current = null;
+    setGameOverExplain(null);
+    resetCorrectNoteSequence();
+    setSessionMembers([]);
+    setAllCards([]);
+    setPlayedStack([]);
+    setMessage('');
+    setLevel(1);
+    setLives(3);
+    setTimeLeft(getLevelTime(1));
+    setIsPaused(false);
+    setUsedWords([]);
+    setHints(2);
+    setIsHintMode(false);
+    setHintActorName('');
+    setReviewedWords([]);
+    setIsPreparing(false);
+    setPrepTimeLeft(5);
+    setHandDisplayOrder({});
+  }, [syncNetRef]);
+
   /** 레벨 클리어 후 저장하고 로비 — 오프라인 단일 플레이만 (온라인은 로비만) */
   const saveOfflineRunAndGoLobby = useCallback(() => {
     const net = networkRef.current;
@@ -859,47 +900,6 @@ export function useSilentDictionaryGame(options = {}) {
       lastNetworkWriteJsonRef.current = '';
     }
   };
-
-  /** 로비로 나가기·스냅샷 복귀 시 로컬 판 상태 초기화 */
-  const resetToLobby = useCallback(() => {
-    lastHydratedGameJsonRef.current = '';
-    lastNetworkWriteJsonRef.current = '';
-    failedRoundRecoveryRef.current = false;
-    appliedRemoteCardIdsRef.current.clear();
-    setGuestPlayLocked(false);
-    aiLastCardPlayAtRef.current = 0;
-    aiPlayAtWallRef.current = 0;
-    aiPlayScheduledCardIdRef.current = '';
-    aiNextPlayAllowedAtRef.current = 0;
-    aiLastPlayWasHumanRef.current = false;
-    aiHumanStallForceAtRef.current = 0;
-    aiHumanStallForceCardIdRef.current = '';
-    aiLastPlayWasAiRef.current = false;
-    roundTotalCardsRef.current = 0;
-    syncNetRef(null);
-    setGameState('home');
-    setTableReviewSecondsLeft(0);
-    setPendingAfterTableReview(null);
-    pendingAfterTableReviewRef.current = null;
-    setGameOverExplain(null);
-    resetCorrectNoteSequence();
-    setSessionMembers([]);
-    setAllCards([]);
-    setPlayedStack([]);
-    setMessage('');
-    setLevel(1);
-    setLives(3);
-    setTimeLeft(getLevelTime(1));
-    setIsPaused(false);
-    setUsedWords([]);
-    setHints(2);
-    setIsHintMode(false);
-    setHintActorName('');
-    setReviewedWords([]);
-    setIsPreparing(false);
-    setPrepTimeLeft(5);
-    setHandDisplayOrder({});
-  }, [syncNetRef]);
 
   /** 온라인: Firestore에 로비 반영 후 로컬 초기화 (로비 버튼·결과 화면) */
   const performLeaveOnline = useCallback(async () => {
