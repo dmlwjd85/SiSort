@@ -267,12 +267,17 @@ export async function updateRoomGame(db, roomId, hostId, game) {
   });
 }
 
+/**
+ * 방 문서 구독 — onData(room, metadata)
+ * metadata.fromCache 가 true 인 오래된 로비 스냅샷은 진행 중 게임을 잘못 초기화할 수 있어 훅에서 필터링함
+ */
 export function subscribeRoom(db, roomId, onData) {
   const ref = doc(db, 'rooms', roomId);
   return onSnapshot(
     ref,
     (snap) => {
-      onData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      const room = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      onData(room, snap.metadata);
     },
     (err) => console.error('subscribeRoom', err)
   );

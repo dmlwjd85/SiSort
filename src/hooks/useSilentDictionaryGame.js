@@ -264,6 +264,7 @@ function buildLevelBundle(targetLevel, members, packKey, usedWordsBefore, keepUs
 
 /**
  * 침묵의 사전 게임 훅 (2~15명, 온라인 시 Firestore 동기화)
+ * 오프라인에서 수정한 규칙·레벨 생성(buildLevelBundle)·실수/타임아웃 처리는 이 훅 하나를 공유하므로 온라인 호스트에도 동일하게 적용됩니다(참가자는 호스트 game 스냅샷만 반영).
  * @param {{ onReturnedToLobby?: () => void, onLevelCleared?: (packKey: string, clearedLevel: number) => void }} [options]
  */
 export function useSilentDictionaryGame(options = {}) {
@@ -807,6 +808,8 @@ export function useSilentDictionaryGame(options = {}) {
         resetToLobby();
         throw e;
       }
+      /* 첫 동기화를 지연 없이 보내 참가자 살펴보기·타이머가 바로 따라가게 함 */
+      flushNetworkGameAfterRestartRef.current = true;
       syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
     },
     [syncNetRef, resetToLobby]
@@ -1433,9 +1436,23 @@ export function useSilentDictionaryGame(options = {}) {
     if (!netRoom?.db || !netRoom?.roomId) return undefined;
     const db = netRoom.db;
     const roomId = netRoom.roomId;
-    return subscribeRoom(db, roomId, (room) => {
+    return subscribeRoom(db, roomId, (room, meta) => {
       if (!room) return;
       if (room.phase === 'lobby') {
+        /* 로컬 캐시에 남은 예전 로비 문서가 먼저 오면 진행 중 판이 통째로 초기화되어 호스트가 튕기고 게스트는 살펴보기에 멈춤 */
+        const net = networkRef.current;
+        const gs = gameStateRef.current;
+        const inOnlineGame =
+          net?.db &&
+          net?.roomId &&
+          (gs === 'playing' ||
+            gs === 'table_review' ||
+            gs === 'level_clear' ||
+            gs === 'game_over' ||
+            gs === 'victory');
+        if (inOnlineGame && meta?.fromCache) {
+          return;
+        }
         lastHydratedGameJsonRef.current = '';
         lastNetworkWriteJsonRef.current = '';
         failedRoundRecoveryRef.current = false;
@@ -1662,7 +1679,9 @@ export function useSilentDictionaryGame(options = {}) {
     if (!netRoom?.db || !netRoom?.roomId || !netRoom.isHost || gameState === 'home') return undefined;
     const immediate = flushNetworkGameAfterRestartRef.current;
     if (immediate) flushNetworkGameAfterRestartRef.current = false;
-    const delayMs = immediate ? 0 : 320;
+    /* 살펴보기·테이블 확인 단계는 초 단위로 변하므로 지연 없이 동기화(게스트 멈춤·카운트 불일치 방지) */
+    const delayMs =
+      immediate || gameBlobForNetwork?.isPreparing || gameState === 'table_review' ? 0 : 320;
     const t = setTimeout(() => {
       const payload = gameBlobForNetwork;
       let j;
