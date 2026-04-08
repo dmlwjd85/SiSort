@@ -20,6 +20,7 @@ import {
   resetCorrectNoteSequence,
 } from '../lib/gameSounds.js';
 import { writeOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
+import { clearRoomSession } from '../utils/roomSession.js';
 import { TOTAL_LEVELS } from '../constants/game.js';
 
 const DEFAULT_PACK_KEY = 'kindergarten';
@@ -678,7 +679,51 @@ export function useSilentDictionaryGame(options = {}) {
     restartLevelAfterFailedRound();
   }, [allCards, gameState, isPreparing, restartLevelAfterFailedRound, scheduleAfterTableReview]);
 
-  /** ?⑤씪???몄뒪?? 諛⑹뿉 寃뚯엫 ?쒖옉 而ㅻ컠 */
+  /** 로비로 나가기·스냅샷 복귀 시 로컬 판 상태 초기화 — 아래 saveOfflineRunAndGoLobby가 [resetToLobby]를 쓰므로 온라인 시작보다 먼저 선언 */
+  const resetToLobby = useCallback(() => {
+    lastHydratedGameJsonRef.current = '';
+    lastNetworkWriteJsonRef.current = '';
+    failedRoundRecoveryRef.current = false;
+    appliedRemoteCardIdsRef.current.clear();
+    setGuestPlayLocked(false);
+    aiLastCardPlayAtRef.current = 0;
+    aiPlayAtWallRef.current = 0;
+    aiPlayScheduledCardIdRef.current = '';
+    aiNextPlayAllowedAtRef.current = 0;
+    aiLastPlayWasHumanRef.current = false;
+    aiHumanStallForceAtRef.current = 0;
+    aiHumanStallForceCardIdRef.current = '';
+    aiLastPlayWasAiRef.current = false;
+    roundTotalCardsRef.current = 0;
+    syncNetRef(null);
+    setGameState('home');
+    setTableReviewSecondsLeft(0);
+    setPendingAfterTableReview(null);
+    pendingAfterTableReviewRef.current = null;
+    setGameOverExplain(null);
+    resetCorrectNoteSequence();
+    setSessionMembers([]);
+    setAllCards([]);
+    setPlayedStack([]);
+    setMessage('');
+    setLevel(1);
+    setLives(3);
+    setTimeLeft(getLevelTime(1));
+    setIsPaused(false);
+    setUsedWords([]);
+    setHints(2);
+    setIsHintMode(false);
+    setHintActorName('');
+    setReviewedWords([]);
+    setIsPreparing(false);
+    setPrepTimeLeft(5);
+    setHandDisplayOrder({});
+  }, [syncNetRef]);
+
+  /**
+   * 온라인 호스트: 방 문서를 playing으로 올린 뒤에만 net 구독을 켬.
+   * (구독이 lobby 스냅샷을 먼저 받으면 호스트 로컬 판이 초기화되어 카드가 비는 버그 방지)
+   */
   const beginOnlineHostGame = useCallback(
     async ({ db, roomId, members, mySlot, packKey, hostPlayerId, playerId }) => {
       lastNetworkWriteJsonRef.current = '';
@@ -693,7 +738,7 @@ export function useSilentDictionaryGame(options = {}) {
       aiHumanStallForceAtRef.current = 0;
       aiHumanStallForceCardIdRef.current = '';
       aiLastPlayWasAiRef.current = false;
-      syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
+
       setSessionMembers(members);
       setMySlotIndex(mySlot);
       setSelectedPackKey(packKey);
@@ -745,9 +790,16 @@ export function useSilentDictionaryGame(options = {}) {
         pendingAfterTableReview: null,
         gameOverExplain: null,
       });
-      await startRoomGame(db, roomId, hostPlayerId, snapshot);
+      try {
+        await startRoomGame(db, roomId, hostPlayerId, snapshot);
+      } catch (e) {
+        console.error('[beginOnlineHostGame]', e);
+        resetToLobby();
+        throw e;
+      }
+      syncNetRef({ db, roomId, isHost: true, hostPlayerId, playerId });
     },
-    [syncNetRef]
+    [syncNetRef, resetToLobby]
   );
 
   /** ?⑤씪??寃뚯뒪?? ?ㅻ깄?룸쭔 ?섏떊 */
@@ -811,50 +863,11 @@ export function useSilentDictionaryGame(options = {}) {
       setLives(nextLives);
       setHints(nextHints);
       startLevel(nl, true, members, uw, packKey);
+      /* 이어하기 세이브는 1회 소비 — 동일 데이터로 반복 이어하기 방지 */
+      clearOfflineRunSave();
     },
     [startLevel, syncNetRef]
   );
-
-  /** 로비로 나가기·스냅샷 복귀 시 로컬 판 상태 초기화 — 아래 saveOfflineRunAndGoLobby가 [resetToLobby]를 쓰므로 반드시 먼저 선언(TDZ 방지) */
-  const resetToLobby = useCallback(() => {
-    lastHydratedGameJsonRef.current = '';
-    lastNetworkWriteJsonRef.current = '';
-    failedRoundRecoveryRef.current = false;
-    appliedRemoteCardIdsRef.current.clear();
-    setGuestPlayLocked(false);
-    aiLastCardPlayAtRef.current = 0;
-    aiPlayAtWallRef.current = 0;
-    aiPlayScheduledCardIdRef.current = '';
-    aiNextPlayAllowedAtRef.current = 0;
-    aiLastPlayWasHumanRef.current = false;
-    aiHumanStallForceAtRef.current = 0;
-    aiHumanStallForceCardIdRef.current = '';
-    aiLastPlayWasAiRef.current = false;
-    roundTotalCardsRef.current = 0;
-    syncNetRef(null);
-    setGameState('home');
-    setTableReviewSecondsLeft(0);
-    setPendingAfterTableReview(null);
-    pendingAfterTableReviewRef.current = null;
-    setGameOverExplain(null);
-    resetCorrectNoteSequence();
-    setSessionMembers([]);
-    setAllCards([]);
-    setPlayedStack([]);
-    setMessage('');
-    setLevel(1);
-    setLives(3);
-    setTimeLeft(getLevelTime(1));
-    setIsPaused(false);
-    setUsedWords([]);
-    setHints(2);
-    setIsHintMode(false);
-    setHintActorName('');
-    setReviewedWords([]);
-    setIsPreparing(false);
-    setPrepTimeLeft(5);
-    setHandDisplayOrder({});
-  }, [syncNetRef]);
 
   /** 레벨 클리어 후 저장하고 로비 — 오프라인 단일 플레이만 (온라인은 로비만) */
   const saveOfflineRunAndGoLobby = useCallback(() => {
@@ -909,13 +922,7 @@ export function useSilentDictionaryGame(options = {}) {
       return;
     }
     try {
-      if (typeof sessionStorage !== 'undefined') {
-        try {
-          sessionStorage.removeItem('sisort_room_id');
-        } catch {
-          /* ignore */
-        }
-      }
+      clearRoomSession();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('sisort-left-online-room'));
       }

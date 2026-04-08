@@ -15,6 +15,7 @@ import {
   ONLINE_ROOM_MAX,
 } from '../lib/roomService.js';
 import { safeSetItem } from '../utils/safeStorage.js';
+import { readRoomIdFromSession, persistRoomSession, clearRoomSession } from '../utils/roomSession.js';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from '../lib/roomCode.js';
 import { getUnlockedPackKeys, PACK_UNLOCK_ORDER } from '../lib/packOrder.js';
 import { loadOfflineRunSave, clearOfflineRunSave } from '../lib/runSave.js';
@@ -100,21 +101,10 @@ export default function LobbyScreen({
 
   const [roomCode, setRoomCode] = useState(() => randomRoomCode());
   const [mode, setMode] = useState('offline'); // offline | online — 기본: 오프라인
-  const [roomId, setRoomId] = useState(() => {
-    try {
-      return sessionStorage.getItem('sisort_room_id') || null;
-    } catch {
-      return null;
-    }
-  });
+  const [roomId, setRoomId] = useState(() => readRoomIdFromSession());
 
   useEffect(() => {
-    try {
-      if (roomId) sessionStorage.setItem('sisort_room_id', roomId);
-      else sessionStorage.removeItem('sisort_room_id');
-    } catch {
-      /* 저장소 비허용 시 무시 */
-    }
+    persistRoomSession(roomId);
   }, [roomId]);
   const [isHost, setIsHost] = useState(false);
   const [hostPlayerId, setHostPlayerId] = useState(null);
@@ -664,11 +654,7 @@ export default function LobbyScreen({
           onClick={() => {
             setMode('offline');
             setRoomId(null);
-            try {
-              sessionStorage.removeItem('sisort_room_id');
-            } catch {
-              /* ignore */
-            }
+            clearRoomSession();
             setErr('');
           }}
           className={`rounded-full px-4 py-2 font-bold ${mode === 'offline' ? 'bg-blue-600' : 'bg-slate-700'}`}
