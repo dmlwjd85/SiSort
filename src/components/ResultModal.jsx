@@ -23,6 +23,8 @@ export default function ResultModal({
   /** 오프라인 단일 플레이에서만 저장 가능 */
   canSaveOffline = false,
   onSaveRunAndExit,
+  /** 온라인 참가자는 레벨 진행·최종 승리 전환을 호스트만 수행(스냅샷 동기화) */
+  canControlProgress = true,
 }) {
   const [quizCard, setQuizCard] = useState(null);
   const lastFanfareLevelRef = useRef(null);
@@ -173,9 +175,15 @@ export default function ResultModal({
             </ul>
           </div>
 
+          {!canControlProgress && (
+            <p className="mb-3 text-center text-sm text-amber-200/95 break-keep">
+              온라인 참가 모드입니다. 다음 레벨·결과는 방장 화면에서 진행되며, 여기서는 동기화만 됩니다.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => {
+              if (!canControlProgress) return;
               if (level === capLevel) {
                 clearOfflineRunSave();
                 setGameState('victory');
@@ -183,9 +191,9 @@ export default function ResultModal({
                 startLevel(level + 1);
               }
             }}
-            disabled={!reviewComplete}
+            disabled={!reviewComplete || !canControlProgress}
             className={`px-8 py-3 rounded-full font-bold text-xl transition-all shadow-lg w-full max-w-sm ${
-              reviewComplete
+              reviewComplete && canControlProgress
                 ? 'bg-green-500 hover:bg-green-400 text-white cursor-pointer'
                 : 'bg-slate-600 text-slate-400 cursor-not-allowed'
             }`}

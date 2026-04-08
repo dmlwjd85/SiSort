@@ -10,6 +10,8 @@ import {
   pushPlayAction,
   pushPrepReorderAction,
   pushHintToggleAction,
+  pushSkipPrepAction,
+  pushFinishTableReviewAction,
   returnRoomToLobby,
   playerSelfLeaveRoom,
   ROOM_MAX,
@@ -437,6 +439,11 @@ export function useSilentDictionaryGame(options = {}) {
   }, []);
 
   const finishTableReview = useCallback(() => {
+    const net = networkRef.current;
+    if (net.db && net.roomId && !net.isHost) {
+      pushFinishTableReviewAction(net.db, net.roomId).catch(console.error);
+      return;
+    }
     const next = pendingAfterTableReviewRef.current;
     pendingAfterTableReviewRef.current = null;
     setPendingAfterTableReview(null);
@@ -626,6 +633,9 @@ export function useSilentDictionaryGame(options = {}) {
 
   const startLevel = useCallback(
     (targetLevel, keepUsedWords = true, membersArg, usedWordsOverride, packKeyOverride) => {
+      const net = networkRef.current;
+      /* 온라인 게스트: 레벨 진행은 호스트 판만 유효 */
+      if (net?.db && net?.roomId && !net.isHost) return;
       const members = membersArg ?? sessionMembersRef.current;
       const uw = usedWordsOverride !== undefined ? usedWordsOverride : usedWords;
       const pk = packKeyOverride !== undefined ? packKeyOverride : selectedPackKey;
@@ -1182,9 +1192,8 @@ export function useSilentDictionaryGame(options = {}) {
       }
     }
 
-    /* 오프라인: 남은 패가 모두 가상 플레이어 것(2장 이상) — 시간 초과로 생명을 깎지 않고 버퍼만 부여 */
-    const netDb = !!networkRef.current?.db;
-    if (!netDb && unplayed.length > 1) {
+    /* 남은 패가 모두 가상 플레이어 것(2장 이상) — 시간 초과로 생명을 깎지 않고 버퍼만 부여(오프라인·온라인 호스트 동일) */
+    if (unplayed.length > 1) {
       const onlyAiLeft = unplayed.every((c) => {
         const si = parseSlot(c.owner);
         return si >= 0 && sessionMembersRef.current[si]?.isAI === true;
@@ -1376,15 +1385,16 @@ export function useSilentDictionaryGame(options = {}) {
   useEffect(() => {
     if (gameState !== 'playing' || !isPreparing) return;
     if (docHidden) return;
-    /* 온라인 게스트: 살펴보기 초·본편 시작은 호스트 game 스냅샷만 신뢰 (로컬 카운트다운 시 어긋남) */
-    const net = networkRef.current;
-    if (net.db && net.roomId && !net.isHost) return;
+    /* prepTimeLeft <= 0 처리는 게스트도 호스트 스냅샷·SKIP_PREP 반영 시 필요 (아래에서 먼저 처리) */
     if (prepTimeLeft <= 0) {
       setIsPreparing(false);
       setMessage('시작!');
       setTimeout(() => setMessage(''), 1000);
       return;
     }
+    const net = networkRef.current;
+    /* 온라인 게스트: 초 카운트다운은 호스트 스냅샷만 신뢰 */
+    if (net.db && net.roomId && !net.isHost) return;
     const timer = setTimeout(() => {
       setPrepTimeLeft((prev) => prev - 1);
     }, 1000);
@@ -1517,6 +1527,24 @@ export function useSilentDictionaryGame(options = {}) {
         }
         return;
       }
+      if (data.type === 'SKIP_PREP') {
+        try {
+          await deleteActionDoc(netRoom.db, netRoom.roomId, actionDocId);
+        } catch (e) {
+          console.error(e);
+        }
+        setPrepTimeLeft(0);
+        return;
+      }
+      if (data.type === 'FINISH_TABLE_REVIEW') {
+        try {
+          await deleteActionDoc(netRoom.db, netRoom.roomId, actionDocId);
+        } catch (e) {
+          console.error(e);
+        }
+        finishTableReview();
+        return;
+      }
       if (data.type !== 'PLAY_CARD') return;
       const { cardId, slot } = data;
       try {
@@ -1527,7 +1555,7 @@ export function useSilentDictionaryGame(options = {}) {
       if (slot === mySlotIndex) return;
       applyRemotePlay(cardId, slot);
     });
-  }, [netRoom, mySlotIndex, applyRemotePlay]);
+  }, [netRoom, mySlotIndex, applyRemotePlay, finishTableReview]);
 
   /** 살펴보기·플레이·일시정지·길라잡이 관계없이 손패 2장 이상이면 드래그 정렬 허용 */
   const canReorderHand = useMemo(() => {
@@ -1686,9 +1714,14 @@ export function useSilentDictionaryGame(options = {}) {
     [sessionMembers, mySlotIndex]
   );
 
-  /** 카드 살펴보기 단계에서 즉시 본편 시작(타이머와 동일) */
+  /** 카드 살펴보기 단계에서 즉시 본편 시작 — 온라인 게스트는 호스트에만 반영 */
   const skipPrep = useCallback(() => {
     if (gameState !== 'playing' || !isPreparing) return;
+    const net = networkRef.current;
+    if (net.db && net.roomId && !net.isHost) {
+      pushSkipPrepAction(net.db, net.roomId).catch(console.error);
+      return;
+    }
     setPrepTimeLeft(0);
   }, [gameState, isPreparing]);
 

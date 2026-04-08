@@ -310,6 +310,22 @@ export async function pushHintToggleAction(db, roomId, { slot, turnOn, playerNam
   });
 }
 
+/** 비호스트 → 호스트: 살펴보기 즉시 종료(오프라인과 동일하게 호스트 판만 진행) */
+export async function pushSkipPrepAction(db, roomId) {
+  await addDoc(collection(db, 'rooms', roomId, 'actions'), {
+    type: 'SKIP_PREP',
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** 비호스트 → 호스트: 테이블 확인(복습 전 대기) 즉시 종료 */
+export async function pushFinishTableReviewAction(db, roomId) {
+  await addDoc(collection(db, 'rooms', roomId, 'actions'), {
+    type: 'FINISH_TABLE_REVIEW',
+    createdAt: serverTimestamp(),
+  });
+}
+
 export function subscribeActions(db, roomId, onAdded) {
   const q = query(collection(db, 'rooms', roomId, 'actions'), orderBy('createdAt', 'asc'));
   return onSnapshot(q, (snap) => {

@@ -194,6 +194,7 @@ export default function PlayScreen(props) {
         gameOverExplain={gameOverExplain}
         canSaveOffline={!netRoom?.db}
         onSaveRunAndExit={saveOfflineRunAndGoLobby}
+        canControlProgress={!netRoom?.db || !!netRoom?.isHost}
       />
     </div>
   );
