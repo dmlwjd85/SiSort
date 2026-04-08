@@ -25,8 +25,14 @@ export default function ResultModal({
   onSaveRunAndExit,
   /** 온라인 참가자는 레벨 진행·최종 승리 전환을 호스트만 수행(스냅샷 동기화) */
   canControlProgress = true,
+  /** 온라인 방장: 게임 오버 후 같은 멤버로 즉시 재시작 */
+  canRestartOnline = false,
+  onRestartOnline,
+  /** 온라인 참가자: 방장 재시작 대기 안내 */
+  showOnlineRestartHint = false,
 }) {
   const [quizCard, setQuizCard] = useState(null);
+  const [restartingOnline, setRestartingOnline] = useState(false);
   const lastFanfareLevelRef = useRef(null);
 
   /** props 누락·스냅샷 불일치 시에도 렌더 예외 방지 */
@@ -228,6 +234,30 @@ export default function ResultModal({
               </p>
             )}
             <p className="text-slate-300 mb-8">생명력을 모두 잃었습니다. (도달 레벨: {level})</p>
+            {showOnlineRestartHint && (
+              <p className="mb-4 text-sm text-amber-200/95 break-keep">
+                같은 방에 그대로 있습니다. 방장이 다시 시작하면 함께 이어집니다.
+              </p>
+            )}
+            {canRestartOnline && typeof onRestartOnline === 'function' && (
+              <button
+                type="button"
+                disabled={restartingOnline}
+                onClick={async () => {
+                  setRestartingOnline(true);
+                  try {
+                    await onRestartOnline();
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setRestartingOnline(false);
+                  }
+                }}
+                className="mb-4 w-full max-w-sm rounded-full bg-emerald-600 px-8 py-3 text-xl font-bold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {restartingOnline ? '시작 중…' : '같은 멤버로 한 판 더'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => (onGoLobby ? onGoLobby() : setGameState('home'))}

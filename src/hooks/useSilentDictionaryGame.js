@@ -14,6 +14,7 @@ import {
   pushFinishTableReviewAction,
   returnRoomToLobby,
   playerSelfLeaveRoom,
+  ROOM_MIN,
   ROOM_MAX,
 } from '../lib/roomService.js';
 import {
@@ -814,6 +815,26 @@ export function useSilentDictionaryGame(options = {}) {
     },
     [syncNetRef, resetToLobby]
   );
+
+  /**
+   * 온라인 방: 게임 오버 후 로비로 나가지 않고 같은 멤버로 즉시 재시작(방장만)
+   */
+  const restartOnlineMatch = useCallback(async () => {
+    const net = networkRef.current;
+    if (!net?.db || !net?.roomId || !net.isHost) return;
+    const members = sessionMembersRef.current;
+    if (!Array.isArray(members) || members.length < ROOM_MIN) return;
+    const mySlot = members.findIndex((m) => m && String(m.playerId) === String(net.playerId));
+    await beginOnlineHostGame({
+      db: net.db,
+      roomId: net.roomId,
+      members,
+      mySlot: mySlot >= 0 ? mySlot : 0,
+      packKey: selectedPackKey,
+      hostPlayerId: net.hostPlayerId,
+      playerId: net.playerId,
+    });
+  }, [beginOnlineHostGame, selectedPackKey]);
 
   /** ?⑤씪??寃뚯뒪?? ?ㅻ깄?룸쭔 ?섏떊 */
   const joinOnlineAsGuest = useCallback(
@@ -1781,6 +1802,7 @@ export function useSilentDictionaryGame(options = {}) {
     startLevel,
     startGame,
     beginOnlineHostGame,
+    restartOnlineMatch,
     joinOnlineAsGuest,
     startOfflineFromLobby,
     resumeOfflineRun,

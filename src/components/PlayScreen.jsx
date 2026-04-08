@@ -48,6 +48,7 @@ export default function PlayScreen(props) {
     pendingAfterTableReview,
     finishTableReview,
     saveOfflineRunAndGoLobby,
+    restartOnlineMatch,
   } = props;
 
   const onlineGuestNoLocalRestart = !!(netRoom?.db && netRoom?.roomId && !netRoom?.isHost);
@@ -195,6 +196,9 @@ export default function PlayScreen(props) {
         canSaveOffline={!netRoom?.db}
         onSaveRunAndExit={saveOfflineRunAndGoLobby}
         canControlProgress={!netRoom?.db || !!netRoom?.isHost}
+        canRestartOnline={!!(netRoom?.db && netRoom?.isHost)}
+        onRestartOnline={restartOnlineMatch}
+        showOnlineRestartHint={!!(netRoom?.db && !netRoom?.isHost)}
       />
     </div>
   );
