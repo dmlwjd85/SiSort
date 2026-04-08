@@ -8,7 +8,13 @@ import {
   deleteDoc,
   query,
   orderBy,
+  getDoc,
+  getDocs,
+  writeBatch,
 } from 'firebase/firestore';
+
+/** 동일 방 코드로 새 방을 만들 수 있도록 하는 문서 보존 기간(밀리초) — 이후에는 덮어쓰기 허용 */
+export const ROOM_DOC_STALE_MS = 60 * 60 * 1000;
 
 export const ROOM_MIN = 2;
 /** 오프라인·로컬 로비에서 허용하는 최대 인원 */
@@ -17,7 +23,35 @@ export const ROOM_MAX = 15;
 export const ONLINE_ROOM_MAX = 6;
 
 /**
- * 방 생성(로비) — 같은 roomId 문서가 이미 있으면 생성하지 않음(merge로 기존 방 덮어쓰기 방지)
+ * updatedAt 기준 오래된 방 문서인지 — 같은 roomId로 새 로비를 만들 수 있게 함
+ */
+function isRoomDocumentStale(data) {
+  if (!data || typeof data !== 'object') return true;
+  const u = data.updatedAt;
+  if (!u || typeof u.toMillis !== 'function') return true;
+  return Date.now() - u.toMillis() > ROOM_DOC_STALE_MS;
+}
+
+/**
+ * 이전 세션의 actions 하위 문서 제거(같은 방 코드 재사용 시 남은 액션으로 인한 오동작 방지)
+ */
+async function deleteRoomActionsInBatches(db, roomId) {
+  const cref = collection(db, 'rooms', roomId, 'actions');
+  const snap = await getDocs(cref);
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += 500) {
+    const batch = writeBatch(db);
+    const end = Math.min(i + 500, docs.length);
+    for (let j = i; j < end; j += 1) {
+      batch.delete(docs[j].ref);
+    }
+    await batch.commit();
+  }
+}
+
+/**
+ * 방 생성(로비) — 같은 roomId가 이미 있으면 오류.
+ * 단, 문서가 ROOM_DOC_STALE_MS보다 오래됐으면 덮어써서 동일 코드로 새 방 생성 가능.
  * @param {import('firebase/firestore').Firestore} db
  */
 /**
@@ -25,10 +59,21 @@ export const ONLINE_ROOM_MAX = 6;
  */
 export async function createRoomDoc(db, roomId, { hostId, packKey, members, hostPackProgress, hostPackUnlockBonus, hostIsMaster }) {
   const ref = doc(db, 'rooms', roomId);
+  const pre = await getDoc(ref);
+  if (pre.exists()) {
+    const data = pre.data();
+    if (!isRoomDocumentStale(data)) {
+      throw new Error('ROOM_ALREADY_EXISTS');
+    }
+    await deleteRoomActionsInBatches(db, roomId);
+  }
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     if (snap.exists()) {
-      throw new Error('ROOM_ALREADY_EXISTS');
+      const data = snap.data();
+      if (!isRoomDocumentStale(data)) {
+        throw new Error('ROOM_ALREADY_EXISTS');
+      }
     }
     transaction.set(ref, {
       hostId,

@@ -1182,6 +1182,22 @@ export function useSilentDictionaryGame(options = {}) {
       }
     }
 
+    /* 오프라인: 남은 패가 모두 가상 플레이어 것(2장 이상) — 시간 초과로 생명을 깎지 않고 버퍼만 부여 */
+    const netDb = !!networkRef.current?.db;
+    if (!netDb && unplayed.length > 1) {
+      const onlyAiLeft = unplayed.every((c) => {
+        const si = parseSlot(c.owner);
+        return si >= 0 && sessionMembersRef.current[si]?.isAI === true;
+      });
+      if (onlyAiLeft) {
+        const grace = Math.min(22, Math.max(5, unplayed.length * 2));
+        setTimeLeft(grace);
+        setMessage('');
+        setIsPaused(false);
+        return;
+      }
+    }
+
     /* 실수 후 손패 없음: 타임아웃으로 이중 차감 방지 */
     if (unplayed.length === 0 && cards.length > 0) {
       if (hasDiscarded) {
