@@ -1387,7 +1387,8 @@ export function useSilentDictionaryGame(options = {}) {
 
   useEffect(() => {
     if (gameState !== 'playing' || !isPreparing) return;
-    if (docHidden) return;
+    /* 오프라인만: 백그라운드 탭에서 타이머 정지. 온라인은 참가자 동기화를 위해 계속 진행 */
+    if (docHidden && !(networkRef.current?.db && networkRef.current?.roomId)) return;
     /* prepTimeLeft <= 0 처리는 게스트도 호스트 스냅샷·SKIP_PREP 반영 시 필요 (아래에서 먼저 처리) */
     if (prepTimeLeft <= 0) {
       setIsPreparing(false);
@@ -1411,7 +1412,8 @@ export function useSilentDictionaryGame(options = {}) {
 
   useEffect(() => {
     if (!runTimer || gameState !== 'playing' || isPaused || isHintMode || isPreparing) return;
-    if (docHidden) return;
+    /* 오프라인만 백그라운드 정지 — 온라인 호스트는 timeLeft·AI를 돌려야 게스트 스냅샷이 갱신됨 */
+    if (docHidden && !(networkRef.current?.db && networkRef.current?.roomId)) return;
     const net = networkRef.current;
     const guestOnline = !!(net.db && net.roomId && !net.isHost);
     if (guestOnline) return;
@@ -1675,26 +1677,25 @@ export function useSilentDictionaryGame(options = {}) {
     gameOverExplain,
   ]);
 
+  /**
+   * 호스트 → Firestore game 문서 갱신
+   * 이전에 320ms setTimeout 디바운스를 썼으나, timeLeft가 100ms마다 바뀌면 타이머가 매번 취소되어
+   * 경기 중에는 거의 쓰기가 실행되지 않았음(웹에서 특히 체감). 동일 JSON은 lastNetworkWriteJsonRef로 건너뜀.
+   */
   useEffect(() => {
     if (!netRoom?.db || !netRoom?.roomId || !netRoom.isHost || gameState === 'home') return undefined;
-    const immediate = flushNetworkGameAfterRestartRef.current;
-    if (immediate) flushNetworkGameAfterRestartRef.current = false;
-    /* 살펴보기·테이블 확인 단계는 초 단위로 변하므로 지연 없이 동기화(게스트 멈춤·카운트 불일치 방지) */
-    const delayMs =
-      immediate || gameBlobForNetwork?.isPreparing || gameState === 'table_review' ? 0 : 320;
-    const t = setTimeout(() => {
-      const payload = gameBlobForNetwork;
-      let j;
-      try {
-        j = JSON.stringify(payload);
-      } catch {
-        return;
-      }
-      if (j === lastNetworkWriteJsonRef.current) return;
-      lastNetworkWriteJsonRef.current = j;
-      updateRoomGame(netRoom.db, netRoom.roomId, netRoom.hostPlayerId, payload).catch(console.error);
-    }, delayMs);
-    return () => clearTimeout(t);
+    if (flushNetworkGameAfterRestartRef.current) flushNetworkGameAfterRestartRef.current = false;
+    const payload = gameBlobForNetwork;
+    let j;
+    try {
+      j = JSON.stringify(payload);
+    } catch {
+      return undefined;
+    }
+    if (j === lastNetworkWriteJsonRef.current) return undefined;
+    lastNetworkWriteJsonRef.current = j;
+    updateRoomGame(netRoom.db, netRoom.roomId, netRoom.hostPlayerId, payload).catch(console.error);
+    return undefined;
   }, [gameBlobForNetwork, gameState, netRoom]);
 
   const userHand = useMemo(() => {
