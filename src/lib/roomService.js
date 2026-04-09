@@ -55,9 +55,17 @@ async function deleteRoomActionsInBatches(db, roomId) {
  * @param {import('firebase/firestore').Firestore} db
  */
 /**
- * @param {{ hostId: string, packKey: string, members: unknown[], hostPackProgress?: Record<string, number>, hostPackUnlockBonus?: string[], hostIsMaster?: boolean }} payload
+ * @param {{ hostId: string, packKey: string, members: unknown[], hostPackProgress?: Record<string, number>, hostPackUnlockBonus?: string[], hostPurchasedPackKeys?: string[], hostIsMaster?: boolean }} payload
  */
-export async function createRoomDoc(db, roomId, { hostId, packKey, members, hostPackProgress, hostPackUnlockBonus, hostIsMaster }) {
+export async function createRoomDoc(db, roomId, {
+  hostId,
+  packKey,
+  members,
+  hostPackProgress,
+  hostPackUnlockBonus,
+  hostPurchasedPackKeys,
+  hostIsMaster,
+}) {
   const ref = doc(db, 'rooms', roomId);
   const pre = await getDoc(ref);
   if (pre.exists()) {
@@ -80,6 +88,7 @@ export async function createRoomDoc(db, roomId, { hostId, packKey, members, host
       packKey,
       hostPackProgress: hostPackProgress && typeof hostPackProgress === 'object' ? hostPackProgress : {},
       hostPackUnlockBonus: Array.isArray(hostPackUnlockBonus) ? hostPackUnlockBonus : [],
+      hostPurchasedPackKeys: Array.isArray(hostPurchasedPackKeys) ? hostPurchasedPackKeys : [],
       /** 방장이 마스터면 참가자도 방장과 동일하게 모든 팩 선택 가능 */
       hostIsMaster: hostIsMaster === true,
       phase: 'lobby',

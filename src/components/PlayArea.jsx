@@ -32,6 +32,15 @@ export default function PlayArea({
   userHand,
   mySlotIndex,
 }) {
+  const handCount = Array.isArray(userHand) ? userHand.length : 0;
+  /* 모바일: 손패가 많을수록 중앙 제출 영역 높이를 줄여 스크롤로 손패를 보기 쉽게 */
+  const centerMobileTight =
+    handCount >= 10
+      ? 'max-lg:max-h-[min(22svh,10.5rem)] max-lg:min-h-[6.5rem]'
+      : handCount >= 7
+        ? 'max-lg:max-h-[min(28svh,12.5rem)] max-lg:min-h-[8rem]'
+        : '';
+
   /** 순서에 맞게 제출될 때마다 중앙 카드에 짧은 초록 이펙트 */
   const [correctFx, setCorrectFx] = useState(false);
   useEffect(() => {
@@ -94,7 +103,9 @@ export default function PlayArea({
         })}
       </div>
 
-      <div className="w-[min(100%,18rem)] min-h-[13.5rem] sm:min-h-0 sm:h-72 sm:w-56 border-2 sm:border-4 border-dashed border-slate-600/90 rounded-2xl sm:rounded-3xl flex flex-col bg-slate-800/40 shadow-inner mt-4 sm:mt-8 p-1 sm:p-0">
+      <div
+        className={`w-[min(100%,18rem)] min-h-[13.5rem] sm:min-h-0 sm:h-72 sm:w-56 border-2 sm:border-4 border-dashed border-slate-600/90 rounded-2xl sm:rounded-3xl flex flex-col bg-slate-800/40 shadow-inner mt-4 sm:mt-8 p-1 sm:p-0 shrink-0 max-lg:overflow-hidden ${centerMobileTight}`.trim()}
+      >
         {lastPlayed ? (
           <div
             className={`flex flex-1 flex-col min-h-0 bg-white rounded-xl sm:rounded-2xl shadow-xl text-center animate-bounce-short border-2 sm:border-4 ${
@@ -176,7 +187,7 @@ export default function PlayArea({
                 아래 <strong className="text-teal-300">내 카드</strong>에서 순서를 맞춘 뒤 시작하세요.
               </p>
               <p className="mb-3 px-0.5 text-center text-[10px] leading-snug text-slate-500 break-keep md:hidden">
-                팀 생명은 공유됩니다. 가상 플레이어 실수에도 생명이 줄 수 있어요.
+                팀 생명은 공유됩니다. 사전 순서가 틀리면 생명이 줄어듭니다.
               </p>
               <div className="mb-3 flex flex-wrap justify-center gap-1.5 text-[10px] md:hidden">
                 <span className="rounded-full border border-teal-500/30 bg-teal-500/15 px-2 py-1 text-teal-100">정렬</span>

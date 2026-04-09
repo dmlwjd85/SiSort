@@ -1,56 +1,51 @@
 import { PACK_DATA } from '../data/words.js';
+import {
+  PACK_CHAIN_ORDER,
+  GUEST_PACK_IDS,
+  filterValidPurchasedPackKeys,
+  getAllRegisteredPackIds,
+} from '../config/packCatalog.js';
 
-/**
- * 팩 잠금 해제 순서 (이전 팩에서 7레벨 클리어 시 다음 팩 오픈)
- * PACK_DATA에 없는 키는 제외
- */
-export const PACK_UNLOCK_ORDER = [
-  'kindergarten',
-  'grade1',
-  'grade2',
-  'grade3',
-  'grade4',
-  'grade5',
-  'grade6',
-  'grade6social',
-  'sajaseongeo_beginner',
-  'sajaseongeo_intermediate',
-  'sajaseongeo_advanced',
-  'korean_history_early',
-].filter((k) => PACK_DATA[k]);
+/** 로비·명예의 전당 등 기존 코드 호환용 별칭 */
+export const PACK_UNLOCK_ORDER = PACK_CHAIN_ORDER;
 
 const UNLOCK_THRESHOLD = 7;
 
 /**
- * @param {{ isGuest: boolean, packProgress?: Record<string, number>, packUnlockBonus?: string[], isMaster?: boolean }} opts
- * packUnlockBonus: 마스터·관리자가 users 문서에 부여한 추가 플레이 가능 팩(진행 체인과 무관)
- * isMaster: 마스터·전역 관리 계정 — 진행도와 무관하게 등록된 모든 단어 팩 플레이 허용
- * @returns {Set<string>} 플레이 가능한 팩 키
+ * @param {{ isGuest: boolean, packProgress?: Record<string, number>, packUnlockBonus?: string[], purchasedPackKeys?: string[], isMaster?: boolean }} opts
+ * packUnlockBonus: 마스터·관리자가 부여한 추가 해금
+ * purchasedPackKeys: 인앱 결제 등으로 해금된 팩(서버 검증 후 저장 권장)
  */
 export function getUnlockedPackKeys({
   isGuest,
   packProgress = {},
   packUnlockBonus = [],
+  purchasedPackKeys = [],
   isMaster = false,
 }) {
   if (isGuest) {
-    return new Set(['kindergarten', 'grade6social'].filter((k) => PACK_DATA[k]));
+    return new Set(GUEST_PACK_IDS.filter((k) => PACK_DATA[k]));
   }
 
-  /* 회원 중 마스터는 체인 클리어 없이 PACK_DATA에 있는 팩 전부 선택 가능 */
   if (isMaster) {
-    return new Set(PACK_UNLOCK_ORDER.filter((k) => PACK_DATA[k]));
+    return new Set(getAllRegisteredPackIds().filter((k) => PACK_DATA[k]));
   }
 
   const bonus = new Set(
     (Array.isArray(packUnlockBonus) ? packUnlockBonus : []).filter((k) => k && PACK_DATA[k])
   );
 
+  const purchased = new Set(filterValidPurchasedPackKeys(purchasedPackKeys));
+
   const unlocked = new Set();
-  for (let i = 0; i < PACK_UNLOCK_ORDER.length; i++) {
-    const key = PACK_UNLOCK_ORDER[i];
+  for (let i = 0; i < PACK_CHAIN_ORDER.length; i++) {
+    const key = PACK_CHAIN_ORDER[i];
     if (!PACK_DATA[key]) continue;
     if (bonus.has(key)) {
+      unlocked.add(key);
+      continue;
+    }
+    if (purchased.has(key)) {
       unlocked.add(key);
       continue;
     }
@@ -58,7 +53,7 @@ export function getUnlockedPackKeys({
       unlocked.add(key);
       continue;
     }
-    const prevKey = PACK_UNLOCK_ORDER[i - 1];
+    const prevKey = PACK_CHAIN_ORDER[i - 1];
     const prevMax = Number(packProgress[prevKey]) || 0;
     if (prevMax >= UNLOCK_THRESHOLD) {
       unlocked.add(key);
@@ -67,12 +62,24 @@ export function getUnlockedPackKeys({
   for (const k of bonus) {
     if (PACK_DATA[k]) unlocked.add(k);
   }
+  for (const k of purchased) {
+    if (PACK_DATA[k]) unlocked.add(k);
+  }
   return unlocked;
 }
 
 /** 팩이 잠금인지 (회원 기준) */
-export function isPackLocked(packKey, { isGuest, packProgress, packUnlockBonus, isMaster = false }) {
-  return !getUnlockedPackKeys({ isGuest, packProgress, packUnlockBonus, isMaster }).has(packKey);
+export function isPackLocked(
+  packKey,
+  { isGuest, packProgress, packUnlockBonus, purchasedPackKeys = [], isMaster = false }
+) {
+  return !getUnlockedPackKeys({
+    isGuest,
+    packProgress,
+    packUnlockBonus,
+    purchasedPackKeys,
+    isMaster,
+  }).has(packKey);
 }
 
 /**
@@ -81,8 +88,8 @@ export function isPackLocked(packKey, { isGuest, packProgress, packUnlockBonus, 
  * @returns {string|null}
  */
 export function getNextPackKey(currentPackKey) {
-  const i = PACK_UNLOCK_ORDER.indexOf(currentPackKey);
-  if (i < 0 || i >= PACK_UNLOCK_ORDER.length - 1) return null;
-  const next = PACK_UNLOCK_ORDER[i + 1];
+  const i = PACK_CHAIN_ORDER.indexOf(currentPackKey);
+  if (i < 0 || i >= PACK_CHAIN_ORDER.length - 1) return null;
+  const next = PACK_CHAIN_ORDER[i + 1];
   return PACK_DATA[next] ? next : null;
 }

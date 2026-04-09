@@ -14,8 +14,8 @@ export const shuffleArray = (array) => {
   return newArr;
 };
 
-// 동적 타이머 — 1레벨 10초, 레벨이 오를 때마다 3초씩 증가
-export const getLevelTime = (lvl) => 10 + (lvl - 1) * 3;
+// 동적 타이머 — 1레벨 14초(기본 +4초), 레벨이 오를 때마다 3초씩 증가
+export const getLevelTime = (lvl) => 14 + (lvl - 1) * 3;
 
 /** 사전 정렬용 문자열 정규화 (유니코드 형태 통일) */
 export function normalizeForDictionarySort(str) {

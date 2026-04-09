@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import AuthScreen from './components/AuthScreen.jsx';
-import LobbyScreen from './components/LobbyScreen.jsx';
-import PlayScreen from './components/PlayScreen.jsx';
-import AdminPanel from './components/AdminPanel.jsx';
-import MyStatsModal from './components/MyStatsModal.jsx';
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import RouteFallback from './components/RouteFallback.jsx';
+
+const AuthScreen = lazy(() => import('./components/AuthScreen.jsx'));
+const LobbyScreen = lazy(() => import('./components/LobbyScreen.jsx'));
+const PlayScreen = lazy(() => import('./components/PlayScreen.jsx'));
+const AdminPanel = lazy(() => import('./components/AdminPanel.jsx'));
+const MyStatsModal = lazy(() => import('./components/MyStatsModal.jsx'));
 import { useSilentDictionaryGame } from './hooks/useSilentDictionaryGame.js';
 import { getOrCreatePlayerId, setPlayerIdFromAuth, clearPlayerId } from './lib/playerId.js';
 import { safeGetItem, safeSetItem } from './utils/safeStorage.js';
@@ -35,6 +37,7 @@ export default function App() {
   const [playerName, setPlayerName] = useState(() => safeGetItem('sisort_name', ''));
   const [packProgress, setPackProgress] = useState({});
   const [packUnlockBonus, setPackUnlockBonus] = useState([]);
+  const [purchasedPackKeys, setPurchasedPackKeys] = useState([]);
   const [phase, setPhase] = useState('lobby');
   const [adminOpen, setAdminOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -61,6 +64,7 @@ export default function App() {
         const st = await fetchUserPackState(authUser.uid);
         setPackProgress(st.packProgress || {});
         setPackUnlockBonus(st.packUnlockBonus || []);
+        setPurchasedPackKeys(st.purchasedPackKeys || []);
         writeCachedUserPackState(authUser.uid, st);
         const newMax = Number((st.packProgress || {})[packKey]) || 0;
         if (clearedLevel === 7 && prevMax < 7 && newMax >= 7) {
@@ -149,6 +153,7 @@ export default function App() {
     if (!authUser?.uid) {
       setPackProgress({});
       setPackUnlockBonus([]);
+      setPurchasedPackKeys([]);
       setAdminCaps(defaultAdminCaps);
       return undefined;
     }
@@ -161,6 +166,7 @@ export default function App() {
     if (cached) {
       setPackProgress(cached.packProgress);
       setPackUnlockBonus(cached.packUnlockBonus);
+      setPurchasedPackKeys(cached.purchasedPackKeys || []);
     }
     const peek = peekAdminCapabilitiesSync(authUser);
     if (peek) setAdminCaps(peek);
@@ -175,6 +181,7 @@ export default function App() {
         if (cancelled) return;
         setPackProgress(st.packProgress || {});
         setPackUnlockBonus(st.packUnlockBonus || []);
+        setPurchasedPackKeys(st.purchasedPackKeys || []);
         writeCachedUserPackState(authUser.uid, st);
         const name = authUser.displayName || authUser.email?.split('@')[0] || '';
         if (name) {
@@ -220,6 +227,7 @@ export default function App() {
     safeSetItem('sisort_name', '');
     setPackProgress({});
     setPackUnlockBonus([]);
+    setPurchasedPackKeys([]);
     setAdminCaps({
       isAdmin: false,
       master: false,
@@ -241,6 +249,31 @@ export default function App() {
     game.resetToLobby();
     setPhase('lobby');
   };
+
+  /** 앱스토어 계정 삭제 완료 후 로컬 캐시·화면 정리 */
+  const handleAccountDeleted = useCallback(
+    (uid) => {
+      if (uid) clearCachedUserPackState(uid);
+      game.resetToLobby();
+      setPhase('lobby');
+    },
+    [game]
+  );
+
+  /** 인앱 구매 반영 등 이후 Firestore 팩 상태 재조회 */
+  const refreshPackEconomy = useCallback(async () => {
+    const uid = authUser?.uid;
+    if (!uid) return;
+    try {
+      const st = await fetchUserPackState(uid);
+      setPackProgress(st.packProgress || {});
+      setPackUnlockBonus(st.packUnlockBonus || []);
+      setPurchasedPackKeys(st.purchasedPackKeys || []);
+      writeCachedUserPackState(uid, st);
+    } catch (e) {
+      console.error('[refreshPackEconomy]', e);
+    }
+  }, [authUser]);
 
   /* 로비 복귀 시 포털·모달 상태가 남아 전체가 어둡게 막히는 것 방지(내 기록·관리자 열린 채 플레이 진입 등) */
   useEffect(() => {
@@ -272,29 +305,33 @@ export default function App() {
 
   if (!showApp) {
     return (
-      <AuthScreen
-        notice={authNotice}
-        onDismissNotice={() => setAuthNotice('')}
-        onGuest={(name) => {
-          setPlayerName(name);
-          setGuestMode(true);
-        }}
-        onLoggedIn={() => {}}
-      />
+      <Suspense fallback={<RouteFallback />}>
+        <AuthScreen
+          notice={authNotice}
+          onDismissNotice={() => setAuthNotice('')}
+          onGuest={(name) => {
+            setPlayerName(name);
+            setGuestMode(true);
+          }}
+          onLoggedIn={() => {}}
+        />
+      </Suspense>
     );
   }
 
   if (!playerName && !firebaseOk) {
     return (
-      <AuthScreen
-        notice={authNotice}
-        onDismissNotice={() => setAuthNotice('')}
-        onGuest={(name) => {
-          setPlayerName(name);
-          setGuestMode(true);
-        }}
-        onLoggedIn={() => {}}
-      />
+      <Suspense fallback={<RouteFallback />}>
+        <AuthScreen
+          notice={authNotice}
+          onDismissNotice={() => setAuthNotice('')}
+          onGuest={(name) => {
+            setPlayerName(name);
+            setGuestMode(true);
+          }}
+          onLoggedIn={() => {}}
+        />
+      </Suspense>
     );
   }
 
@@ -331,41 +368,51 @@ export default function App() {
   if (phase === 'lobby') {
     return (
       <>
-        <LobbyScreen
-          game={game}
-          playerName={playerName}
-          playerId={playerId}
-          setPlayerName={setPlayerName}
-          onStartPlay={() => {
-            setStatsOpen(false);
-            setAdminOpen(false);
-            game.setShowRules(false);
-            game.setShowWordList(false);
-            setPhase('play');
-          }}
-          isGuest={isGuestUi}
-          authUid={authUser?.uid ?? null}
+        <Suspense fallback={<RouteFallback />}>
+          <LobbyScreen
+            game={game}
+            playerName={playerName}
+            playerId={playerId}
+            setPlayerName={setPlayerName}
+            onStartPlay={() => {
+              setStatsOpen(false);
+              setAdminOpen(false);
+              game.setShowRules(false);
+              game.setShowWordList(false);
+              setPhase('play');
+            }}
+            isGuest={isGuestUi}
+            authUid={authUser?.uid ?? null}
+            authEmail={authUser?.email ?? null}
+            onAccountDeleted={handleAccountDeleted}
           packProgress={packProgress}
           packUnlockBonus={packUnlockBonus}
+          purchasedPackKeys={purchasedPackKeys}
+          onRefreshPackEconomy={refreshPackEconomy}
           isMaster={Boolean(!isGuestUi && authUser && adminCaps.master)}
-          onLogout={
-            firebaseOk
-              ? isGuestUi
-                ? handleGuestExitToLogin
-                : handleLogout
-              : undefined
-          }
-          logoutLabel={isGuestUi ? '로그인 화면으로' : '로그아웃'}
-          onOpenAdmin={adminCaps.showAdminPanel ? () => setAdminOpen(true) : undefined}
-          onOpenMyStats={authUser && !isGuestUi ? () => setStatsOpen(true) : undefined}
-        />
-        <AdminPanel
-          open={adminOpen}
-          onClose={() => setAdminOpen(false)}
-          capabilities={adminCaps}
-          currentUid={authUser?.uid}
-        />
-        <MyStatsModal open={statsOpen} onClose={() => setStatsOpen(false)} uid={authUser?.uid} />
+            onLogout={
+              firebaseOk
+                ? isGuestUi
+                  ? handleGuestExitToLogin
+                  : handleLogout
+                : undefined
+            }
+            logoutLabel={isGuestUi ? '로그인 화면으로' : '로그아웃'}
+            onOpenAdmin={adminCaps.showAdminPanel ? () => setAdminOpen(true) : undefined}
+            onOpenMyStats={authUser && !isGuestUi ? () => setStatsOpen(true) : undefined}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AdminPanel
+            open={adminOpen}
+            onClose={() => setAdminOpen(false)}
+            capabilities={adminCaps}
+            currentUid={authUser?.uid}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <MyStatsModal open={statsOpen} onClose={() => setStatsOpen(false)} uid={authUser?.uid} />
+        </Suspense>
         {packUnlockOverlay}
       </>
     );
@@ -373,13 +420,17 @@ export default function App() {
 
   return (
     <>
-      <PlayScreen {...game} onLeaveLobby={onLeaveLobby} />
-      <AdminPanel
-        open={adminOpen}
-        onClose={() => setAdminOpen(false)}
-        capabilities={adminCaps}
-        currentUid={authUser?.uid}
-      />
+      <Suspense fallback={<RouteFallback />}>
+        <PlayScreen {...game} onLeaveLobby={onLeaveLobby} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <AdminPanel
+          open={adminOpen}
+          onClose={() => setAdminOpen(false)}
+          capabilities={adminCaps}
+          currentUid={authUser?.uid}
+        />
+      </Suspense>
       {packUnlockOverlay}
     </>
   );

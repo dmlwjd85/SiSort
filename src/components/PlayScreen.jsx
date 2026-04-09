@@ -168,17 +168,26 @@ export default function PlayScreen(props) {
               <p className="mt-0.5 text-[10px] text-amber-200/80 md:text-xs">내 손패 바로 위 — 스크롤해도 이 안내가 함께 움직입니다</p>
             </div>
           )}
-          <PlayerHand
-            userHand={userHand}
-            handlePlayCard={handlePlayCard}
-            gameState={gameState}
-            isPaused={isPaused}
-            isHintMode={isHintMode}
-            isPreparing={isPreparing}
-            reorderMyHandPrep={reorderMyHandPrep}
-            canReorderHand={canReorderHand}
-            guestPlayLocked={guestPlayLocked}
-          />
+          {/* 모바일·손패 많을 때: 영역 안에서 세로 스크롤로 전체 패 확인(중앙 플레이 영역과 높이 경쟁 완화) */}
+          <div
+            className={
+              userHand.length >= 6
+                ? 'max-md:max-h-[min(50svh,28rem)] max-md:min-h-0 max-md:overflow-y-auto max-md:overscroll-y-contain'
+                : ''
+            }
+          >
+            <PlayerHand
+              userHand={userHand}
+              handlePlayCard={handlePlayCard}
+              gameState={gameState}
+              isPaused={isPaused}
+              isHintMode={isHintMode}
+              isPreparing={isPreparing}
+              reorderMyHandPrep={reorderMyHandPrep}
+              canReorderHand={canReorderHand}
+              guestPlayLocked={guestPlayLocked}
+            />
+          </div>
         </div>
       </div>
 

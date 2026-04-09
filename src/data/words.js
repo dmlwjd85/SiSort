@@ -8,6 +8,8 @@ import {
 import { koreanHistoryEarlyPack } from './wordsKoreanHistoryEarly.js';
 
 // --- 학년별 단어 데이터베이스 팩 ---
+// 새 팩 추가 시: 여기에 키·단어를 넣은 뒤 src/config/packCatalog.js 에 CHAIN / IAP 를 등록하세요.
+// (docs/PACK_CATALOG.md 참고)
 // 유치원 50개부터 6학년 100개까지 10개씩 증가하며 총 550개의 단어가 담겨 있습니다.
 // 뜻은 표준국어사전 등에서 흔히 제시되는 첫 풀이를 짧게 요약한 것입니다.
 export const PACK_DATA = {

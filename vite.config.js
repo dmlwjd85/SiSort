@@ -3,12 +3,32 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// GitHub Pages: 저장소 github.com/dmlwjd85/SiSort → 보통 /SiSort/ (저장소 표기와 동일)
-// CI에서만 base를 설정하고, 로컬 개발은 '/' 유지
-const base = process.env.GITHUB_ACTIONS === 'true' ? '/SiSort/' : '/'
+// Capacitor 네이티브 빌드: 반드시 '/' (에셋 경로)
+// GitHub Pages: CI에서만 /SiSort/
+// 로컬 개발: '/'
+const base =
+  process.env.CAPACITOR === 'true'
+    ? '/'
+    : process.env.GITHUB_ACTIONS === 'true'
+      ? '/SiSort/'
+      : '/'
 
 // https://vite.dev/config/
 export default defineConfig({
   base,
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        /* 초기 파싱·캐시 효율: React / Firebase 분리 → 첫 상호작용까지 체감 개선 */
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('firebase')) return 'firebase'
+          if (id.includes('react-dom') || id.includes('node_modules/react/')) return 'react-vendor'
+          if (id.includes('@capacitor')) return 'capacitor'
+          return undefined
+        },
+      },
+    },
+  },
 })

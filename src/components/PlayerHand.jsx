@@ -49,6 +49,23 @@ export default function PlayerHand({
   const cannotPlayCard =
     gameState !== 'playing' || isPaused || isHintMode || isPreparing || guestPlayLocked;
 
+  const n = userHand.length;
+  /* 모바일만: 장수에 따라 카드 박스·글자 크기 조절(많을 때 축소, 줄어들면 기본 크기) */
+  const mobileCardBox =
+    n >= 10
+      ? 'max-md:w-[4.35rem] max-md:h-[6.1rem] max-md:rounded-md max-md:p-1.5 max-md:shadow'
+      : n >= 7
+        ? 'max-md:w-[5.15rem] max-md:h-[7.15rem] max-md:rounded-lg max-md:p-2 max-md:shadow-md'
+        : 'max-md:w-[6.25rem] max-md:h-[8.75rem] max-md:rounded-lg max-md:p-2 max-md:shadow-md';
+  const mobileWordSize =
+    n >= 10 ? 'max-md:text-base max-md:mb-0.5' : n >= 7 ? 'max-md:text-lg max-md:mb-1' : 'max-md:text-xl max-md:mb-1';
+  const mobileDescSize =
+    n >= 10
+      ? 'max-md:text-[9px] max-md:line-clamp-3'
+      : n >= 7
+        ? 'max-md:text-[10px] max-md:line-clamp-4'
+        : 'max-md:text-[10px] max-md:line-clamp-4';
+
   return (
     <div
       className={`bg-slate-900/90 backdrop-blur-sm md:bg-slate-800 md:backdrop-blur-none p-2.5 sm:p-4 lg:p-5 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] z-10 border-t border-slate-700/70 lg:border-t-0 pb-safe shrink-0 ${className}`.trim()}
@@ -156,7 +173,7 @@ export default function PlayerHand({
                     ? '드래그: 순서 이동 · 가나다 정렬은 위쪽 버튼'
                     : undefined
                 }
-                className={`w-[6.25rem] h-[8.75rem] sm:w-32 sm:h-44 bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg flex flex-col items-center justify-center p-2 sm:p-3 text-slate-800 transition-transform duration-150 ease-out select-none touch-manipulation ${
+                className={`${mobileCardBox} w-[6.25rem] h-[8.75rem] sm:w-32 sm:h-44 bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg flex flex-col items-center justify-center p-2 sm:p-3 text-slate-800 transition-transform duration-150 ease-out select-none touch-manipulation ${
                   cannotPlayCard && !canReorder ? 'opacity-60' : ''
                 } ${
                   canReorder
@@ -168,8 +185,14 @@ export default function PlayerHand({
                   outOfOrder ? 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-900 sm:ring-offset-2 sm:ring-offset-slate-800' : ''
                 } ${isPreparing && canReorder ? 'touch-none' : ''}`}
               >
-                <span className="text-xl sm:text-3xl font-black mb-1 sm:mb-2 leading-tight">{card.word}</span>
-                <span className="text-[10px] sm:text-xs text-slate-600 text-center leading-tight break-keep line-clamp-4 sm:line-clamp-none">
+                <span
+                  className={`text-xl sm:text-3xl font-black mb-1 sm:mb-2 leading-tight ${mobileWordSize}`}
+                >
+                  {card.word}
+                </span>
+                <span
+                  className={`text-[10px] sm:text-xs text-slate-600 text-center leading-tight break-keep line-clamp-4 sm:line-clamp-none ${mobileDescSize}`}
+                >
                   {card.desc}
                 </span>
               </button>

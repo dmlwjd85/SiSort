@@ -110,9 +110,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || adminCanReadUsers();
       allow create: if isOwner(userId);
+      /* purchasedPackKeys: 인앱 해금(클라이언트 직접 쓰기는 테스트용 — 운영 시 검증 서버에서만 갱신 권장) */
       allow update: if isOwner(userId)
         || (adminCanUnlockOthers() && packUnlockBonusUpdateOnly());
-      allow delete: if adminCanBanOrDeleteUsers() && request.auth.uid != userId;
+      /* 본인 계정 삭제(앱스토어 계정 삭제 요건) + 마스터의 타인 삭제 */
+      allow delete: if isOwner(userId)
+        || (adminCanBanOrDeleteUsers() && request.auth.uid != userId);
     }
 
     match /bannedUsers/{uid} {

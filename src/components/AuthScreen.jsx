@@ -11,6 +11,7 @@ import {
 } from '../lib/accountIdentity.js';
 import { safeSetItem } from '../utils/safeStorage.js';
 import KoreanThemeBackdrop from './KoreanThemeBackdrop.jsx';
+import LegalFooterLinks from './LegalFooterLinks.jsx';
 
 const GUEST_KEY = 'sisort_guest';
 
@@ -309,6 +310,7 @@ export default function AuthScreen({ onGuest, onLoggedIn, notice = '', onDismiss
         <p className="mt-6 text-center text-[11px] text-slate-500 break-keep">
           말 없이도 단어가 보이는 한글 놀이 · 가나다 순서를 맞추며 배워요
         </p>
+        <LegalFooterLinks className="mt-4" />
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase.js';
 import { PACK_DATA } from '../data/words.js';
+import { filterValidPurchasedPackKeys } from '../config/packCatalog.js';
 import { isMasterAccountEmail } from './accountIdentity.js';
 
 const USERS = 'users';
@@ -94,19 +95,41 @@ export async function updatePackProgressRemote(uid, packKey, clearedLevel) {
 }
 
 /**
- * 팩 진행도 + 관리자 지정 추가 해제 팩 목록
- * @returns {Promise<{ packProgress: Record<string, number>, packUnlockBonus: string[] }>}
+ * 팩 진행도 + 관리자 보너스 해금 + 인앱 구매 해금 목록
+ * @returns {Promise<{ packProgress: Record<string, number>, packUnlockBonus: string[], purchasedPackKeys: string[] }>}
  */
 export async function fetchUserPackState(uid) {
   const db = getFirestoreDb();
-  if (!db) return { packProgress: {}, packUnlockBonus: [] };
+  if (!db) return { packProgress: {}, packUnlockBonus: [], purchasedPackKeys: [] };
   const snap = await getDoc(doc(db, USERS, uid));
-  if (!snap.exists()) return { packProgress: {}, packUnlockBonus: [] };
+  if (!snap.exists()) return { packProgress: {}, packUnlockBonus: [], purchasedPackKeys: [] };
   const d = snap.data();
   const packProgress = typeof d.packProgress === 'object' && d.packProgress ? d.packProgress : {};
   const raw = d.packUnlockBonus;
   const packUnlockBonus = Array.isArray(raw) ? raw.filter((k) => typeof k === 'string' && PACK_DATA[k]) : [];
-  return { packProgress, packUnlockBonus };
+  const rawPurchased = d.purchasedPackKeys;
+  const purchasedPackKeys = filterValidPurchasedPackKeys(
+    Array.isArray(rawPurchased) ? rawPurchased : []
+  );
+  return { packProgress, packUnlockBonus, purchasedPackKeys };
+}
+
+/**
+ * 인앱 결제 검증 후(또는 관리 스크립트에서) 구매 팩 키 병합
+ * @param {string} uid
+ * @param {string[]} packKeysToAdd
+ */
+export async function mergeUserPurchasedPackKeys(uid, packKeysToAdd) {
+  const db = getFirestoreDb();
+  if (!db || !uid) throw new Error('Firestore 또는 uid 없음');
+  const toAdd = filterValidPurchasedPackKeys(packKeysToAdd);
+  if (toAdd.length === 0) return;
+  const ref = doc(db, USERS, uid);
+  const snap = await getDoc(ref);
+  const prev = snap.exists() ? snap.data().purchasedPackKeys : [];
+  const prevClean = filterValidPurchasedPackKeys(Array.isArray(prev) ? prev : []);
+  const next = [...new Set([...prevClean, ...toAdd])];
+  await setDoc(ref, { purchasedPackKeys: next, lastPurchaseAt: serverTimestamp() }, { merge: true });
 }
 
 /**
@@ -190,7 +213,10 @@ export function readCachedUserPackState(uid) {
     if (!o || typeof o !== 'object') return null;
     const packProgress = typeof o.packProgress === 'object' && o.packProgress ? o.packProgress : {};
     const packUnlockBonus = Array.isArray(o.packUnlockBonus) ? o.packUnlockBonus : [];
-    return { packProgress, packUnlockBonus };
+    const purchasedPackKeys = filterValidPurchasedPackKeys(
+      Array.isArray(o.purchasedPackKeys) ? o.purchasedPackKeys : []
+    );
+    return { packProgress, packUnlockBonus, purchasedPackKeys };
   } catch {
     return null;
   }
@@ -204,6 +230,9 @@ export function writeCachedUserPackState(uid, state) {
       JSON.stringify({
         packProgress: state.packProgress || {},
         packUnlockBonus: Array.isArray(state.packUnlockBonus) ? state.packUnlockBonus : [],
+        purchasedPackKeys: filterValidPurchasedPackKeys(
+          Array.isArray(state.purchasedPackKeys) ? state.purchasedPackKeys : []
+        ),
       })
     );
   } catch {

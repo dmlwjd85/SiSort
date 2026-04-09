@@ -8,7 +8,13 @@ import {
   onAuthStateChanged,
   updateProfile,
   fetchSignInMethodsForEmail,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  deleteUser,
 } from 'firebase/auth';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { getFirestoreDb } from './firebase.js';
+import { pinToFirebasePassword, isMasterAccountEmail } from './accountIdentity.js';
 import { getApps, initializeApp } from 'firebase/app';
 import { readFirebaseConfig } from './firebaseConfig.js';
 
@@ -81,6 +87,28 @@ export async function logoutFirebase() {
   const auth = getFirebaseAuth();
   if (!auth) return;
   await signOut(auth);
+}
+
+const USERS_COLLECTION = 'users';
+
+/**
+ * 회원 본인: 비밀번호(숫자 4자리) 재확인 후 Firestore 프로필 삭제 + Firebase Auth 계정 삭제
+ * (앱스토어·플레이스토어 계정 삭제 노출 요건)
+ */
+export async function deleteOwnAccountWithPin(pin4) {
+  const auth = getFirebaseAuth();
+  const user = auth?.currentUser;
+  if (!user?.email) throw new Error('로그인이 필요합니다.');
+  if (isMasterAccountEmail(user.email)) {
+    throw new Error('마스터 계정은 앱에서 삭제할 수 없습니다.');
+  }
+  const cred = EmailAuthProvider.credential(user.email, pinToFirebasePassword(pin4));
+  await reauthenticateWithCredential(user, cred);
+  const db = getFirestoreDb();
+  if (db) {
+    await deleteDoc(doc(db, USERS_COLLECTION, user.uid));
+  }
+  await deleteUser(user);
 }
 
 export function subscribeAuth(callback) {

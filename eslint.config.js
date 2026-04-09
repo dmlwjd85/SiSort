@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  /* Capacitor가 복사한 번들·네이티브 프로젝트는 린트 대상 아님 */
+  globalIgnores(['dist', 'android', 'ios']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
