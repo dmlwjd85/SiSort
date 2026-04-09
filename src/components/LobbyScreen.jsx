@@ -80,6 +80,7 @@ function LobbyPrimaryCta({
   remoteRoom,
   onStartOffline,
   onStartOnline,
+  onCreateOnlineRoom,
   compact = false,
 }) {
   const sizeCls = compact
@@ -98,6 +99,25 @@ function LobbyPrimaryCta({
       </button>
     );
   }
+  /* 온라인인데 아직 방에 연결 전: 상단에서도 방 만들기와 동일한 주요 CTA 제공 */
+  if (mode === 'online' && !roomId && typeof onCreateOnlineRoom === 'function') {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={onCreateOnlineRoom}
+          disabled={!canStart || busy}
+          className={`flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-600 ${sizeCls} text-white shadow-lg shadow-emerald-900/30 transition-[transform,filter] duration-150 hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation`}
+        >
+          <QuickStartGlyph className={compact ? 'scale-90' : ''} />
+          방 만들기
+        </button>
+        <p className="text-center text-[11px] text-slate-500 break-keep">
+          참가만 할 경우 아래 <strong className="text-slate-300">온라인 방</strong>에서 코드 입력 후 참가를 누르세요.
+        </p>
+      </div>
+    );
+  }
   if (mode === 'online' && isHost && roomId) {
     return (
       <button
@@ -111,15 +131,10 @@ function LobbyPrimaryCta({
       </button>
     );
   }
-  if (mode === 'online' && !(isHost && roomId)) {
+  if (mode === 'online' && roomId && !isHost) {
     return (
       <div className="rounded-xl bg-slate-900/60 px-3 py-3 text-center text-sm text-slate-400 break-keep">
-        {roomId && !isHost && <p>방장이 게임을 시작할 때까지 대기 중입니다.</p>}
-        {!roomId && (
-          <p>
-            아래 <strong className="text-slate-200">온라인 방</strong>에서 참가하거나 방을 만든 뒤 시작합니다.
-          </p>
-        )}
+        <p>방장이 게임을 시작할 때까지 대기 중입니다.</p>
       </div>
     );
   }
@@ -205,6 +220,20 @@ export default function LobbyScreen({
     { playerId, name: playerName, isAI: false },
     { playerId: `ai-${Date.now()}`, name: 'AI 1', isAI: true },
   ]);
+
+  /** 익명/이메일 로그인 후 playerId가 바뀌면 로컬 슬롯의 본인 id를 맞춤 (방 hostId·members와 일치) */
+  useEffect(() => {
+    setLocalMembers((prev) => {
+      let changed = false;
+      const next = prev.map((m) => {
+        if (m.isAI) return m;
+        if (String(m.playerId) === String(playerId)) return m;
+        changed = true;
+        return { ...m, playerId };
+      });
+      return changed ? next : prev;
+    });
+  }, [playerId]);
 
   const roomMax = mode === 'online' ? ONLINE_ROOM_MAX : ROOM_MAX;
 
@@ -490,19 +519,25 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
-      await ensureFirebaseAuth();
+      /* 게스트는 로컬 playerId와 익명 uid가 달라서, 인증 직후 uid로 방·멤버를 맞춰야 방장 판정·시작이 됩니다 */
+      const authUser = await ensureFirebaseAuth();
+      const uid = authUser.uid;
+      const membersForRoom = localMembers.map((m) =>
+        m.isAI ? m : { ...m, playerId: uid }
+      );
       await createRoomDoc(db, code, {
-        hostId: playerId,
+        hostId: uid,
         packKey: selectedPackKey,
-        members: localMembers,
+        members: membersForRoom,
         hostPackProgress: packProgress,
         hostPackUnlockBonus: Array.isArray(packUnlockBonus) ? packUnlockBonus : [],
         hostPurchasedPackKeys: filterValidPurchasedPackKeys(purchasedPackKeys),
         hostIsMaster: Boolean(isMaster && !isGuest),
       });
+      setLocalMembers(membersForRoom);
       setRoomId(code);
       setIsHost(true);
-      setHostPlayerId(playerId);
+      setHostPlayerId(uid);
       setMode('online');
       seenSelfInMembersRef.current = true;
       kickBlockedUntilRef.current = Date.now() + 20000;
@@ -535,8 +570,12 @@ export default function LobbyScreen({
     setBusy(true);
     setErr('');
     try {
-      await ensureFirebaseAuth();
-      await joinRoomDoc(db, code, { playerId, name: playerName, isAI: false });
+      const authUser = await ensureFirebaseAuth();
+      const uid = authUser.uid;
+      await joinRoomDoc(db, code, { playerId: uid, name: playerName, isAI: false });
+      setLocalMembers((prev) =>
+        prev.map((m) => (m.isAI ? m : { ...m, playerId: uid }))
+      );
       setRoomId(code);
       setIsHost(false);
       setHostPlayerId(null);
@@ -774,6 +813,7 @@ export default function LobbyScreen({
           remoteRoom={remoteRoom}
           onStartOffline={handleStartOffline}
           onStartOnline={handleStartOnline}
+          onCreateOnlineRoom={onlineOk ? () => void handleCreateRoom() : undefined}
         />
       </section>
 
@@ -827,10 +867,10 @@ export default function LobbyScreen({
                   if (mode === 'online' && isHost && onlineOk) void syncPackOnline(key);
                   else setSelectedPackKey(key);
                 }}
-                disabled={locked || (mode === 'online' && !isHost)}
+                disabled={locked || (mode === 'online' && roomId && !isHost)}
                 className={`flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl px-2 py-2 text-center text-xs font-bold leading-tight sm:text-sm ${
                   selectedPackKey === key ? 'bg-amber-400 text-slate-900 shadow-md' : 'bg-slate-700/90 text-slate-100'
-                } ${mode === 'online' && !isHost ? 'opacity-60' : ''} ${
+                } ${mode === 'online' && roomId && !isHost ? 'opacity-60' : ''} ${
                   locked ? 'cursor-not-allowed opacity-40' : 'touch-manipulation active:scale-[0.98]'
                 } ${locked && iap ? 'line-through decoration-amber-400/50' : ''}`}
               >
@@ -975,6 +1015,7 @@ export default function LobbyScreen({
             remoteRoom={remoteRoom}
             onStartOffline={handleStartOffline}
             onStartOnline={handleStartOnline}
+            onCreateOnlineRoom={onlineOk ? () => void handleCreateRoom() : undefined}
             compact
           />
         </div>
