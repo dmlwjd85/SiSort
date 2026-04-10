@@ -592,18 +592,19 @@ export function useSilentDictionaryGame(options = {}) {
     setHandDisplayOrder(bundle.handDisplayOrder ?? {});
   }, []);
 
+  /** @returns {boolean} 레벨 묶음 적용 성공 여부(실패 시 세이브 소비·로비 이동 금지 등에 사용) */
   const startLevel = useCallback(
     (targetLevel, keepUsedWords = true, membersArg, usedWordsOverride, packKeyOverride) => {
       const net = networkRef.current;
       /* 온라인 게스트: 레벨 진행은 호스트 판만 유효 */
-      if (net?.db && net?.roomId && !net.isHost) return;
+      if (net?.db && net?.roomId && !net.isHost) return false;
       const members = membersArg ?? sessionMembersRef.current;
       const uw = usedWordsOverride !== undefined ? usedWordsOverride : usedWords;
       const pk = packKeyOverride !== undefined ? packKeyOverride : selectedPackKey;
       const bundle = buildLevelBundle(targetLevel, members, pk, uw, keepUsedWords);
       if (!bundle) {
         setMessage('단어를 구성할 수 없습니다. 참가 인원(2~15명)과 난이도를 확인해 주세요.');
-        return;
+        return false;
       }
       applyLevelBundle(bundle);
       if (packKeyOverride !== undefined) {
@@ -612,6 +613,7 @@ export function useSilentDictionaryGame(options = {}) {
       if (bundle.exhaustionCycle) {
         setMessage('모든 단어를 한 번씩 썼습니다. 이제부터는 무작위로 이어갑니다.');
       }
+      return true;
     },
     [selectedPackKey, usedWords, applyLevelBundle]
   );
@@ -855,9 +857,11 @@ export function useSilentDictionaryGame(options = {}) {
       const nextHints = Math.min(99, Math.max(0, Number.isFinite(Number(saved.hints)) ? Number(saved.hints) : 2));
       setLives(nextLives);
       setHints(nextHints);
-      startLevel(nl, true, members, uw, packKey);
-      /* 이어하기 세이브는 1회 소비 — 동일 데이터로 반복 이어하기 방지 */
-      clearOfflineRunSave();
+      const started = startLevel(nl, true, members, uw, packKey);
+      /* 이어하기 세이브는 적용 성공 시 1회만 삭제 — 실패 시 데이터 유지 */
+      if (started) {
+        clearOfflineRunSave();
+      }
     },
     [startLevel, syncNetRef]
   );
@@ -871,13 +875,19 @@ export function useSilentDictionaryGame(options = {}) {
       return;
     }
     if (level < TOTAL_LEVELS) {
-      writeOfflineRunSave({
+      const ok = writeOfflineRunSave({
         packKey: selectedPackKey,
         nextLevel: level + 1,
         usedWords: [...usedWords],
         lives,
         hints,
       });
+      if (!ok) {
+        window.alert(
+          '진행 저장에 실패했습니다. 브라우저에서 이 사이트의 저장소(로컬 데이터·쿠키)를 허용했는지, 사생활 보호 모드에서는 예외로 허용했는지 확인해 주세요.'
+        );
+        return;
+      }
     } else {
       clearOfflineRunSave();
     }

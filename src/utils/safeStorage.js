@@ -21,3 +21,14 @@ export function safeSetItem(key, value) {
     return false;
   }
 }
+
+/** 삭제 실패(저장소 비허용 등) 시 false */
+export function safeRemoveItem(key) {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
